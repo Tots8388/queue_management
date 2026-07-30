@@ -155,6 +155,10 @@ else:
             DATABASES["default"]["NAME"],
         )
 
+# Staff accounts carry a clinical role, so the user model is ours from the
+# start. Patients never have accounts — they are identified only by a token.
+AUTH_USER_MODEL = "queueapp.StaffUser"
+
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
@@ -224,6 +228,21 @@ if not CORS_ALLOWED_ORIGINS and not IS_PRODUCTION:
     ]
 CORS_ALLOW_CREDENTIALS = True
 CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS
+
+# ---------------------------------------------------------------------------
+# Visit tokens
+# ---------------------------------------------------------------------------
+# Defaults produce the spec's example format, T-041. The approved prototypes
+# show A017, so the shape is configurable rather than hard-coded — the clinic
+# can change it without a code change. Nothing may assume the token's shape.
+TOKEN = {
+    "PREFIX": os.environ.get("TOKEN_PREFIX", "T"),
+    "SEPARATOR": os.environ.get("TOKEN_SEPARATOR", "-"),
+    "DIGITS": env_int("TOKEN_DIGITS", 3),
+    # Numbering restarts each day, so tokens stay short and readable across a
+    # waiting room instead of growing without bound.
+    "DAILY_RESET": env_bool("TOKEN_DAILY_RESET", True),
+}
 
 # ---------------------------------------------------------------------------
 # Wait-range calculation (spec: cautious range, never a countdown)

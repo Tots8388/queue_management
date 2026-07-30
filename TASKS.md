@@ -19,16 +19,16 @@
 
 ## Phase 1 — Data models & migrations
 
-- [ ] Define `StaffUser` / `Role` model with the six roles (Registration Clerk, Nurse/Vitals, Clinician, Pharmacist, Supervisor/Admin, IT/Support)
-- [ ] Define `Visit` model: internal `visit_id`, anonymous `token`, `check_in_time`, `current_stage`, `stage_status`, `priority`, `presence_status`, `notification_preference` — no names/diagnoses/prescriptions
-- [ ] Define `StageEvent` model: `visit`, `stage`, `entered_at`, `completed_at`, `completed_by_role` (preserves stage history for return-after-tests)
-- [ ] Define `PriorityChange` model: `visit`, `new_priority`, `changed_by_role`, `timestamp`, `non_sensitive_reason`
-- [ ] Define `PharmacyOutcome` model: `visit`, `state` (ready / issued / unavailable), `by_role`, `timestamp`
-- [ ] Define `AuditLogEntry` model: `actor_staff_user`, `actor_role`, `action`, `timestamp`, `visit_token`, `non_sensitive_detail`
-- [ ] Wire relationships (Visit → many StageEvents, PriorityChanges, PharmacyOutcomes, AuditLogEntries)
-- [ ] **[GOV SIGN-OFF] (G2)** Enforce token ↔ medical-record decoupling: queue DB holds no clinical data; station-side lookup stays outside the queue DB (depends on linkage sign-off)
-- [ ] Generate and apply migrations
-- [ ] Create a fictional-data seed script (spec: prototype records must be fictional)
+- [x] Define `StaffUser` / `Role` model with the six roles (Registration Clerk, Nurse/Vitals, Clinician, Pharmacist, Supervisor/Admin, IT/Support)
+- [x] Define `Visit` model: internal `visit_id`, anonymous `token`, `check_in_time`, `current_stage`, `stage_status`, `priority`, `presence_status`, `notification_preference` — no names/diagnoses/prescriptions
+- [x] Define `StageEvent` model: `visit`, `stage`, `entered_at`, `completed_at`, `completed_by_role` (preserves stage history for return-after-tests)
+- [x] Define `PriorityChange` model: `visit`, `new_priority`, `changed_by_role`, `timestamp`, `non_sensitive_reason`
+- [x] Define `PharmacyOutcome` model: `visit`, `state` (ready / issued / unavailable), `by_role`, `timestamp`
+- [x] Define `AuditLogEntry` model: `actor_staff_user`, `actor_role`, `action`, `timestamp`, `visit_token`, `non_sensitive_detail` — table only; nothing writes to it until G3 (Phase 8)
+- [x] Wire relationships (Visit → many StageEvents, PriorityChanges, PharmacyOutcomes, AuditLogEntries)
+- [x] **[GOV SIGN-OFF] (G2)** Enforce token ↔ medical-record decoupling: queue DB holds no clinical data; station-side lookup stays outside the queue DB (depends on linkage sign-off)
+- [x] Generate and apply migrations
+- [x] Create a fictional-data seed script (spec: prototype records must be fictional)
 
 ## Phase 2 — Auth & RBAC
 

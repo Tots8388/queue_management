@@ -15,7 +15,7 @@
 - [x] Add Django Channels + ASGI server config (real-time transport groundwork)
 - [x] Scaffold Next.js / React frontend app with accessible component baseline
 - [x] Set up environment/config loading (env-var based; no secrets committed)
-- [ ] **[GOV SIGN-OFF]** Confirm proposed-default decisions with the team (stack, SMS provider, waiting-range method, auth method) and secure institutional sign-off on governance/clinical-policy items **before writing feature code** (spec step 2) — **BLOCKED**, tracked as G1 in [`docs/governance/SIGNOFF.md`](./docs/governance/SIGNOFF.md); enforced by the pre-commit gate, not by this checkbox
+- [x] **[GOV SIGN-OFF] (G1)** Confirm proposed-default decisions with the team (stack, SMS provider, waiting-range method, auth method) and secure institutional sign-off on governance/clinical-policy items **before writing feature code** (spec step 2) — approved for **academic-prototype scope, fictional data only**; see G1 in [`docs/governance/SIGNOFF.md`](./docs/governance/SIGNOFF.md). Enforced by the pre-commit gate, not by this checkbox.
 
 ## Phase 1 — Data models & migrations
 
@@ -26,7 +26,7 @@
 - [ ] Define `PharmacyOutcome` model: `visit`, `state` (ready / issued / unavailable), `by_role`, `timestamp`
 - [ ] Define `AuditLogEntry` model: `actor_staff_user`, `actor_role`, `action`, `timestamp`, `visit_token`, `non_sensitive_detail`
 - [ ] Wire relationships (Visit → many StageEvents, PriorityChanges, PharmacyOutcomes, AuditLogEntries)
-- [ ] **[GOV SIGN-OFF]** Enforce token ↔ medical-record decoupling: queue DB holds no clinical data; station-side lookup stays outside the queue DB (depends on linkage sign-off)
+- [ ] **[GOV SIGN-OFF] (G2)** Enforce token ↔ medical-record decoupling: queue DB holds no clinical data; station-side lookup stays outside the queue DB (depends on linkage sign-off)
 - [ ] Generate and apply migrations
 - [ ] Create a fictional-data seed script (spec: prototype records must be fictional)
 
@@ -35,7 +35,7 @@
 - [ ] Configure Django auth with JWT (`djangorestframework-simplejwt`) or server sessions; keys from env
 - [ ] Implement role-based permission classes for all six roles, least privilege
 - [ ] Restrict priority assignment to clinical roles only (Nurse/Vitals, Clinician); block Reception and Pharmacy (FR3)
-- [ ] **[GOV SIGN-OFF]** Implement Management/Supervisor vs IT/Support permission boundary (analytics/oversight vs system/user admin; neither assigns clinical priority) — depends on permissions sign-off
+- [ ] **[GOV SIGN-OFF] (G4)** Implement Management/Supervisor vs IT/Support permission boundary (analytics/oversight vs system/user admin; neither assigns clinical priority) — depends on permissions sign-off
 - [ ] Add login/logout endpoints and per-role dashboard authorization guards
 - [ ] Write access-control tests: each role can only reach its permitted actions
 
@@ -95,7 +95,7 @@
 
 ## Phase 8 — Audit log & de-identified reporting
 
-- [ ] **[GOV SIGN-OFF]** Implement identifiable audit trail (staff user + role + reason) for accountability actions — overrides, manual reorders, key completions (depends on audit-granularity sign-off)
+- [ ] **[GOV SIGN-OFF] (G3)** Implement identifiable audit trail (staff user + role + reason) for accountability actions — overrides, manual reorders, key completions (depends on audit-granularity sign-off)
 - [ ] Build de-identified, aggregate analytics/reporting exposing no individual actor
 - [ ] Build management review view over the audit log for authorised roles (FR14)
 - [ ] Verify no clinical or identifying patient data leaks into reports
@@ -117,5 +117,5 @@
 - [ ] Rehearse the manual offline fallback and reconciliation end-to-end
 - [ ] Produce low-fidelity wireframes → high-fidelity clickable prototype covering all spec §4.9 items (fictional data only)
 - [ ] Run evaluation: heuristic evaluation, cognitive walkthrough, task-based usability testing (targets: ≥80% unaided core-task completion, no unresolved critical safety/privacy defect, mean ease-of-use ≥4/5, ≥80% correctly explain routine vs emergency priority)
-- [ ] **[GOV SIGN-OFF]** Complete pre-pilot governance checklist: data controller, retention rules, incident response / breach notification, rollback to manual fallback — all approved before any real-data pilot (spec *Assumptions*)
+- [ ] **[GOV SIGN-OFF] (G5)** Complete pre-pilot governance checklist: data controller, retention rules, incident response / breach notification, rollback to manual fallback — all approved before any real-data pilot (spec *Assumptions*)
 - [ ] Refine based on evaluation findings (UCD is iterative)

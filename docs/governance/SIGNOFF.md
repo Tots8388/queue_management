@@ -1,6 +1,8 @@
 # Governance sign-off register
 
-**Status: NOT APPROVED — feature development is blocked.**
+**Status: PARTIAL — approved for academic-prototype development on fictional
+data only. G3, G4 and G5 remain PENDING, and no real patient data may be
+handled under any circumstances.**
 
 This register is the authoritative record of institutional sign-off for the
 Digital Queue & Patient-Flow Management System. Items below are the decisions
@@ -24,11 +26,19 @@ below points at it.
 
 ```yaml
 id: build-authorisation
-status: PENDING
-approver:
-approval_date:
-evidence:
+status: APPROVED
+approver: Joshua Tuitoek (project lead), academic-prototype scope
+approval_date: 2026-07-30
+evidence: Project-lead authorisation, 30 July 2026 — NOT a governance-committee minute. Scope limited to prototype development on fictional data.
 ```
+
+> **Scope of this approval.** It confirms the team's technical defaults (Django +
+> DRF + PostgreSQL + Channels, Next.js, Africa's Talking, the position ×
+> rolling-median wait range, JWT auth) and authorises prototype development on
+> **fictional data only**, as the HCI/UCD coursework the brief describes. It is
+> **not** a Medical Center / University governance decision, and it does not
+> approve G3, G4 or G5. Any move toward a real-data pilot requires those items
+> approved by the actual governance body and re-recorded here.
 
 **What must be approved:** that the proposed-default decisions in the spec's
 *Resolved decisions* section are confirmed by the team (stack, SMS provider,
@@ -57,11 +67,18 @@ feature code".
 
 ```yaml
 id: record-linkage
-status: PENDING
-approver:
-approval_date:
-evidence:
+status: APPROVED
+approver: Joshua Tuitoek (project lead), academic-prototype scope
+approval_date: 2026-07-30
+evidence: Project-lead authorisation, 30 July 2026 — NOT a governance-committee minute. Approves the decoupled design for a fictional-data prototype.
 ```
+
+> **Scope of this approval.** It authorises building the **decoupled** design —
+> anonymous token, internal `visit_id`, no clinical data in the queue database,
+> station-side lookup kept outside it. That is the minimal-data option, so
+> building it now cannot over-collect: a later governance decision could only
+> ever narrow it further or leave it as is. It does **not** authorise holding
+> real patient identity in any form; that needs G5 and the real governance body.
 
 **What must be approved:** that the queue token and the medical record stay
 **decoupled** — the queue stores an internal `visit_id`, the patient-facing

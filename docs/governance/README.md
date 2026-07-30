@@ -31,10 +31,12 @@ travels with the repository rather than living in one developer's `.git/hooks`.
 - **Commits touching blocked paths.** While G2 is `PENDING`,
   `backend/queueapp/models.py` cannot be committed. The message names the item
   and the approving body.
-- **Ticked governance tasks.** If a `[GOV SIGN-OFF]` line in `TASKS.md` is
-  ticked `[x]` while any register item is `PENDING`, the commit is refused. This
-  is the specific failure the gate exists to prevent: the checklist saying done
-  when the approval never happened.
+- **Ticked governance tasks.** Every `[GOV SIGN-OFF]` line in `TASKS.md` names
+  the register item it depends on, e.g. `**[GOV SIGN-OFF] (G2)**`. Ticking one
+  `[x]` while that item is `PENDING` is refused — the specific failure the gate
+  exists to prevent: the checklist saying done when the approval never
+  happened. A governance task that names no item cannot be verified, so it is
+  also refused; ambiguity fails closed.
 - **A cosmetic approval.** An item marked `APPROVED` with no approver or no
   approval date is treated as a malformed register, and a malformed register
   fails closed — everything stays blocked until it parses.

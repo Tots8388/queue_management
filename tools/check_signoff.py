@@ -164,6 +164,9 @@ def staged_files() -> list[str]:
     return [line.strip() for line in result.stdout.splitlines() if line.strip()]
 
 
+GATE_REF_RE = re.compile(r"\bG\d+\b")
+
+
 def ticked_gov_tasks() -> list[str]:
     """Ticked TASKS.md checkboxes that carry the [GOV SIGN-OFF] tag."""
     if not TASKS_PATH.exists():
@@ -177,21 +180,37 @@ def ticked_gov_tasks() -> list[str]:
 
 def check_ticked_tasks(items: list[GateItem]) -> list[str]:
     """
-    A ticked governance task with a pending item is the failure mode this whole
-    script exists for: the checklist says done, the approval never happened.
-    """
-    pending = [item for item in items if not item.approved]
-    if not pending:
-        return []
+    A ticked governance task whose gate item is still pending is the failure
+    mode this whole script exists for: the checklist says done, the approval
+    never happened.
 
+    Each [GOV SIGN-OFF] task must name the register item it depends on (G1, G2,
+    …) so it can be checked against that item alone — otherwise approving one
+    item would never let its own task be ticked while any other stayed pending.
+    A task that names no item is ambiguous, and ambiguity fails closed.
+    """
+    by_ref = {item.ref: item for item in items}
     problems = []
+
     for task in ticked_gov_tasks():
-        problems.append(
-            f"TASKS.md has a ticked [GOV SIGN-OFF] task while "
-            f"{', '.join(i.ref for i in pending)} "
-            f"{'is' if len(pending) == 1 else 'are'} still {PENDING}:\n"
-            f"      {task}"
-        )
+        refs = [ref for ref in GATE_REF_RE.findall(task) if ref in by_ref]
+        if not refs:
+            problems.append(
+                "TASKS.md has a ticked [GOV SIGN-OFF] task that names no "
+                "register item, so it cannot be verified. Add its gate "
+                f"reference (e.g. G2):\n      {task}"
+            )
+            continue
+
+        unapproved = [ref for ref in refs if not by_ref[ref].approved]
+        if unapproved:
+            problems.append(
+                f"TASKS.md has a ticked [GOV SIGN-OFF] task while "
+                f"{', '.join(unapproved)} "
+                f"{'is' if len(unapproved) == 1 else 'are'} still {PENDING}:\n"
+                f"      {task}"
+            )
+
     return problems
 
 

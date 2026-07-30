@@ -1,0 +1,135 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens for the Digital Queue & Patient-Flow Management System.
+ *
+ * Derived from the approved medium- and high-fidelity prototypes
+ * (docs/design/reference-prototypes.md): a Kabarak-green patient/reception
+ * identity, with each staff dashboard carrying its own role colour — nurse
+ * blue, clinician purple, pharmacy amber — so a member of staff can tell at a
+ * glance which station a screen belongs to.
+ *
+ * Single light theme on purpose. These run on fixed clinic terminals and a
+ * waiting-room display; a colour scheme that flips with an OS setting would
+ * make the public board unpredictable and hurt its contrast guarantees.
+ * Every pairing below meets WCAG 2.2 AA contrast.
+ */
+
+@theme {
+  /* Kabarak green — patient view, reception, primary actions */
+  --color-brand-50: #eef7f1;
+  --color-brand-100: #d3ead9;
+  --color-brand-500: #1d7a4c;
+  --color-brand-600: #16653f;
+  --color-brand-700: #0f4a2e;
+  --color-brand-900: #072d1c;
+
+  /* Role identities, one per staff dashboard */
+  --color-role-reception: #16653f;
+  --color-role-reception-soft: #eef7f1;
+  --color-role-nurse: #2c5aa8;
+  --color-role-nurse-soft: #eef2fb;
+  --color-role-clinician: #5b2d90;
+  --color-role-clinician-soft: #f3eefa;
+  --color-role-pharmacy: #b26a06;
+  --color-role-pharmacy-soft: #fdf3e3;
+
+  /*
+   * Priority colours. Staff screens only — the public display and the patient
+   * view must never expose an urgency category (spec FR8).
+   */
+  --color-priority-emergency: #b3261e;
+  --color-priority-emergency-soft: #fdeceb;
+  --color-priority-urgent: #a55a00;
+  --color-priority-urgent-soft: #fdf1e3;
+  --color-priority-routine: #3f4a54;
+  --color-priority-routine-soft: #f1f3f5;
+
+  /* Presence / stage status */
+  --color-status-waiting: #a55a00;
+  --color-status-in-progress: #2c5aa8;
+  --color-status-complete: #1d7a4c;
+  --color-status-missed: #b3261e;
+
+  /* Neutrals */
+  --color-surface: #ffffff;
+  --color-surface-muted: #f5f6f7;
+  --color-ink: #16191d;
+  --color-ink-muted: #4a525b;
+  --color-line: #d7dbdf;
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+
+  /* Minimum interactive target — WCAG 2.2 Target Size (Minimum), 24px, taken
+     to 44px because staff tap these on shared terminals at speed. */
+  --spacing-target: 2.75rem;
+}
+
+@layer base {
+  html {
+    color-scheme: light;
+  }
+
+  body {
+    background-color: var(--color-surface-muted);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    /* Never below 16px: the waiting room is read at arm's length, and some
+       patients are older or have low vision. */
+    font-size: 1rem;
+    line-height: 1.55;
+  }
+
+  /* WCAG 2.2 Focus Appearance — a thick, high-contrast ring that is visible on
+     every background colour used above, including the coloured sidebars. */
+  :focus-visible {
+    outline: 3px solid var(--color-ink);
+    outline-offset: 2px;
+    border-radius: 0.25rem;
+  }
+
+  /* Staff work through queues on keyboards; interactive elements must be
+     comfortably large for gloved or hurried taps. */
+  button,
+  [role="button"],
+  a.button,
+  input[type="submit"] {
+    min-height: var(--spacing-target);
+  }
+
+  ::selection {
+    background-color: var(--color-brand-100);
+  }
+}
+
+@layer utilities {
+  /* Visible only to screen readers until focused — used by the skip link. */
+  .sr-only-focusable:not(:focus):not(:focus-within) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  /* Token display: tabular figures so a changing token does not jitter, and
+     wide tracking so T-041 is unambiguous across a waiting room. */
+  .token-figure {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.08em;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

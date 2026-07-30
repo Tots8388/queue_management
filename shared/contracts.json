@@ -1,0 +1,100 @@
+{
+  "$comment": "Single source of truth for the queue vocabulary shared by backend and frontend. Derived from spec.md (Users & roles, Data entities, Queue policy). Change here, not in either app.",
+  "version": 1,
+  "roles": [
+    {
+      "key": "registration_clerk",
+      "label": "Registration Clerk",
+      "clinical": false,
+      "may_assign_priority": false
+    },
+    {
+      "key": "nurse_vitals",
+      "label": "Nurse / Vitals",
+      "clinical": true,
+      "may_assign_priority": true
+    },
+    {
+      "key": "clinician",
+      "label": "Clinician",
+      "clinical": true,
+      "may_assign_priority": true
+    },
+    {
+      "key": "pharmacist",
+      "label": "Pharmacist",
+      "clinical": false,
+      "may_assign_priority": false
+    },
+    {
+      "key": "supervisor",
+      "label": "Supervisor / Management",
+      "clinical": false,
+      "may_assign_priority": false
+    },
+    {
+      "key": "it_support",
+      "label": "IT / Support",
+      "clinical": false,
+      "may_assign_priority": false
+    }
+  ],
+  "stages": [
+    { "key": "registration", "label": "Registration", "order": 1 },
+    { "key": "vitals", "label": "Vital signs", "order": 2 },
+    { "key": "consultation", "label": "Consultation", "order": 3 },
+    { "key": "pharmacy", "label": "Pharmacy", "order": 4 },
+    { "key": "complete", "label": "Complete", "order": 5 }
+  ],
+  "stage_statuses": [
+    { "key": "waiting", "label": "Waiting" },
+    { "key": "in_progress", "label": "In progress" },
+    { "key": "complete", "label": "Complete" }
+  ],
+  "priorities": [
+    {
+      "key": "emergency",
+      "label": "Emergency",
+      "rank": 0,
+      "service_rule": "Immediate clinical attention",
+      "patient_message": "Emergency cases may be served immediately."
+    },
+    {
+      "key": "urgent",
+      "label": "Urgent",
+      "rank": 1,
+      "service_rule": "Next appropriate clinical slot",
+      "patient_message": "Urgent cases may be served before routine cases."
+    },
+    {
+      "key": "routine",
+      "label": "Routine",
+      "rank": 2,
+      "service_rule": "Order by recorded check-in time within the stage",
+      "patient_message": "Routine cases are served in check-in order."
+    }
+  ],
+  "presence_statuses": [
+    { "key": "waiting", "label": "Waiting" },
+    { "key": "called", "label": "Called" },
+    { "key": "recalled", "label": "Recalled" },
+    { "key": "temporarily_away", "label": "Temporarily away" },
+    { "key": "missed_turn", "label": "Missed turn" },
+    { "key": "resumed", "label": "Resumed" }
+  ],
+  "pharmacy_states": [
+    { "key": "medicine_ready", "label": "Medicine ready" },
+    { "key": "medicine_issued", "label": "Medicine issued" },
+    { "key": "medicine_unavailable", "label": "Medicine unavailable" }
+  ],
+  "notification_preferences": [
+    { "key": "screen", "label": "Screen" },
+    { "key": "printed", "label": "Printed token" },
+    { "key": "sms", "label": "SMS / phone" }
+  ],
+  "privacy": {
+    "$comment": "Fields that may NEVER appear on a public-display payload.",
+    "public_display_allowed_fields": ["token", "destination"],
+    "never_stored": ["name", "diagnosis", "symptoms", "prescription"]
+  }
+}

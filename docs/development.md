@@ -43,8 +43,9 @@ npm install
 npm run dev
 ```
 
-Or run both at once from the repo root with `start.bat` (Windows) or
-`./start.sh` (macOS/Linux), and shut them down with `stop.bat` / `./stop.sh`.
+Or run both at once from the repo root with `start.bat`, and shut them down with
+`stop.bat`. Both are Windows batch files — the clinic machine is the target
+platform, so that is the only pair kept in sync.
 
 ## Database
 
@@ -54,7 +55,7 @@ records, and the spec fixes PostgreSQL as the decision.
 
 Set `DATABASE_URL` in `.env`:
 
-```
+```text
 DATABASE_URL=postgres://queue_user:PASSWORD@localhost:5432/queue_management
 ```
 

@@ -21,7 +21,7 @@ Kabarak University Medical Center — outpatient queue and patient-flow prototyp
 ## What it does (v1)
 
 | Area | Behaviour |
-|---|---|
+| --- | --- |
 | Token | One anonymous, human-readable token (e.g. `T-041`) per visit, persisting across all four stages. |
 | Fairness | Routine patients are served in recorded check-in order **within each stage**. |
 | Clinical priority | Only authorised clinical roles (Nurse/Vitals, Clinician) may set emergency/urgent, and every change is logged with role, timestamp and a non-sensitive reason. The system never computes clinical urgency and never delays emergency care. |
@@ -32,7 +32,7 @@ Kabarak University Medical Center — outpatient queue and patient-flow prototyp
 
 ## Architecture
 
-```
+```text
 frontend/   Next.js / React — patient view, public display, role-based staff dashboards
 backend/    Django + Django REST Framework + Django Channels — the single authoritative
             queue state, RBAC, priority policy, stage transitions, audit log
@@ -57,13 +57,12 @@ cp .env.example .env      # then fill in local values; never commit .env
 
 Then run both services:
 
-```
-start.bat        # Windows
-./start.sh       # macOS / Linux
+```bat
+start.bat
 ```
 
-`stop.bat` / `./stop.sh` shut them down. Ports are pinned at the top of each
-script: backend `8000`, frontend `3000`.
+`stop.bat` shuts them down and is safe to run when nothing is up. Ports are
+pinned at the top of each script: backend `8000`, frontend `3000`.
 
 Setup details, including the PostgreSQL vs SQLite decision, are in
 [`docs/development.md`](./docs/development.md).

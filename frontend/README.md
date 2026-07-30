@@ -15,7 +15,7 @@ npm run build
 npm run lint
 ```
 
-Or run the whole system with `start.bat` / `./start.sh` from the repo root.
+Or run the whole system with `start.bat` from the repo root.
 
 ## Conventions
 

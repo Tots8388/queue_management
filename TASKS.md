@@ -6,16 +6,16 @@
 
 ## Phase 0 — Project setup
 
-- [ ] Create repo structure: `frontend/`, `backend/`, `docs/`, shared types/config
-- [ ] Add `.gitignore` (Python, Node, env files, build artifacts)
-- [ ] Copy `spec.md` into the repo and reference it from the README
-- [ ] Add `.env.example` with variable **names only** (DB URL, Django secret key, JWT signing key, SMS API key/secret, SMS sender ID, hosting host/port) — no values
-- [ ] Scaffold Django project + Django REST Framework backend
-- [ ] Add and configure PostgreSQL; document local prototype fallback to SQLite (prototype only)
-- [ ] Add Django Channels + ASGI server config (real-time transport groundwork)
-- [ ] Scaffold Next.js / React frontend app with accessible component baseline
-- [ ] Set up environment/config loading (env-var based; no secrets committed)
-- [ ] **[GOV SIGN-OFF]** Confirm proposed-default decisions with the team (stack, SMS provider, waiting-range method, auth method) and secure institutional sign-off on governance/clinical-policy items **before writing feature code** (spec step 2)
+- [x] Create repo structure: `frontend/`, `backend/`, `docs/`, shared types/config
+- [x] Add `.gitignore` (Python, Node, env files, build artifacts)
+- [x] Copy `spec.md` into the repo and reference it from the README
+- [x] Add `.env.example` with variable **names only** (DB URL, Django secret key, JWT signing key, SMS API key/secret, SMS sender ID, hosting host/port) — no values
+- [x] Scaffold Django project + Django REST Framework backend
+- [x] Add and configure PostgreSQL; document local prototype fallback to SQLite (prototype only)
+- [x] Add Django Channels + ASGI server config (real-time transport groundwork)
+- [x] Scaffold Next.js / React frontend app with accessible component baseline
+- [x] Set up environment/config loading (env-var based; no secrets committed)
+- [ ] **[GOV SIGN-OFF]** Confirm proposed-default decisions with the team (stack, SMS provider, waiting-range method, auth method) and secure institutional sign-off on governance/clinical-policy items **before writing feature code** (spec step 2) — **BLOCKED**, tracked as G1 in [`docs/governance/SIGNOFF.md`](./docs/governance/SIGNOFF.md); enforced by the pre-commit gate, not by this checkbox
 
 ## Phase 1 — Data models & migrations
 

@@ -1,0 +1,19 @@
+#!/bin/sh
+#
+# Governance gate. Refuses commits that touch code depending on decisions the
+# Medical Center / University governance body has not yet approved.
+#
+# Enabled by: git config core.hooksPath .githooks
+# (tools/install_hooks.py does this for you.)
+
+if command -v python >/dev/null 2>&1; then
+    PYTHON=python
+elif command -v python3 >/dev/null 2>&1; then
+    PYTHON=python3
+else
+    echo "pre-commit: no python interpreter found — cannot run the governance gate." >&2
+    echo "Install Python or run: python tools/check_signoff.py --staged" >&2
+    exit 1
+fi
+
+exec "$PYTHON" tools/check_signoff.py --staged

@@ -1,0 +1,21 @@
+# Digital Queue & Patient-Flow Management System — backend dependencies
+# Stack fixed by spec.md: Django + DRF + PostgreSQL + Channels (WebSockets).
+
+Django==5.2.7
+djangorestframework==3.16.1
+djangorestframework-simplejwt==5.5.1
+django-cors-headers==4.9.0
+
+# Real-time transport. `channels[daphne]` pulls in the Daphne ASGI server, which
+# also makes `manage.py runserver` serve ASGI in development.
+channels[daphne]==4.3.1
+# Cross-process channel layer for the LAN deployment (in-memory layer is
+# single-process only).
+channels-redis==4.3.0
+
+# PostgreSQL driver (psycopg 3, binary wheel — no local libpq build needed).
+psycopg[binary]==3.2.10
+
+# Configuration: read .env into the environment, parse DATABASE_URL.
+python-dotenv==1.1.1
+dj-database-url==3.0.1

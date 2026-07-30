@@ -41,19 +41,19 @@
 
 ## Phase 3 — Queue engine (application service layer)
 
-- [ ] Implement check-in endpoint: record `check_in_time`, issue anonymous human-readable token e.g. `T-041` (FR1)
-- [ ] Implement routine ordering by check-in time **within each stage** (FR2)
-- [ ] Implement stage transitions: registration → vitals → consultation → pharmacy → complete (FR6)
-- [ ] Implement stage-completion actions: vitals complete, consultation complete, medicine ready/issued/unavailable (FR10)
-- [ ] Implement priority-change endpoint restricted to clinical roles; record role, timestamp, non-sensitive category (FR3, FR5)
-- [ ] Implement emergency override: route case immediately to appropriate clinical service ahead of routine queue; never block on system state (FR4)
-- [ ] Implement urgent priority: next appropriate clinical slot
-- [ ] Implement manual routine-reorder requiring a logged reason
-- [ ] Implement presence statuses: called → recalled → temporarily-away → missed-turn → resumed, with recall/recovery route (FR9)
-- [ ] Implement return-to-clinician after lab tests without losing prior stage history (FR13)
-- [ ] Write audit-log entries for every priority change, manual reorder, and key completion (FR14)
-- [ ] Establish single authoritative queue state as source of truth for all channels
-- [ ] Write unit tests for ordering, override precedence, and stage-transition correctness
+- [x] Implement check-in endpoint: record `check_in_time`, issue anonymous human-readable token e.g. `T-041` (FR1)
+- [x] Implement routine ordering by check-in time **within each stage** (FR2)
+- [x] Implement stage transitions: registration → vitals → consultation → pharmacy → complete (FR6)
+- [x] Implement stage-completion actions: vitals complete, consultation complete, medicine ready/issued/unavailable (FR10)
+- [x] Implement priority-change endpoint restricted to clinical roles; record role, timestamp, non-sensitive category (FR3, FR5)
+- [x] Implement emergency override: route case immediately to appropriate clinical service ahead of routine queue; never block on system state (FR4)
+- [x] Implement urgent priority: next appropriate clinical slot
+- [x] Implement manual routine-reorder requiring a logged reason
+- [x] Implement presence statuses: called → recalled → temporarily-away → missed-turn → resumed, with recall/recovery route (FR9)
+- [x] Implement return-to-clinician after lab tests without losing prior stage history (FR13)
+- [ ] Write audit-log entries for every priority change, manual reorder, and key completion (FR14) — **BLOCKED by G3**. The engine emits every accountability event to an audit seam; `queueapp/audit.py` (the write path) is gated, so the events are currently discarded and a warning says so at startup.
+- [x] Establish single authoritative queue state as source of truth for all channels
+- [x] Write unit tests for ordering, override precedence, and stage-transition correctness
 
 ## Phase 4 — Real-time (Django Channels / WebSockets)
 

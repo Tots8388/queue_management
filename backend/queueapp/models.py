@@ -203,8 +203,13 @@ class Visit(models.Model):
     check_in_time = models.DateTimeField(
         default=timezone.now,
         db_index=True,
-        help_text="Recorded at registration. Routine ordering within a stage uses this.",
+        help_text="Recorded at registration. Never changes — it is the record.",
     )
+    # The working sort key for routine ordering. It starts equal to
+    # check_in_time and is only ever moved by a manual reorder, which requires a
+    # logged reason. Keeping the two apart means a reorder cannot quietly
+    # rewrite what time the patient actually arrived.
+    queue_order_time = models.DateTimeField(default=timezone.now, db_index=True)
 
     current_stage = models.CharField(
         max_length=32,
@@ -257,7 +262,12 @@ class Visit(models.Model):
             # then in check-in order. Ordering is applied in the queue engine;
             # this index is what keeps it cheap at peak.
             models.Index(
-                fields=["current_stage", "stage_status", "priority", "check_in_time"],
+                fields=[
+                    "current_stage",
+                    "stage_status",
+                    "priority",
+                    "queue_order_time",
+                ],
                 name="visit_queue_order_idx",
             ),
         ]
@@ -277,9 +287,13 @@ class Visit(models.Model):
         """
         today = timezone.localdate()
         _, number = TokenSequence.allocate(today)
-        return cls.objects.create(
+        visit = cls.objects.create(
             token=format_token(number), token_date=today, **fields
         )
+        if visit.queue_order_time != visit.check_in_time:
+            visit.queue_order_time = visit.check_in_time
+            visit.save(update_fields=["queue_order_time"])
+        return visit
 
     @property
     def is_complete(self) -> bool:

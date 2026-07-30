@@ -89,6 +89,9 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     # Third party
     "rest_framework",
+    # Lets a refresh token be revoked at logout. Clinic terminals are shared,
+    # so "signed out" has to mean the token is dead, not merely forgotten.
+    "rest_framework_simplejwt.token_blacklist",
     "corsheaders",
     "channels",
     # Local
@@ -198,6 +201,10 @@ SIMPLE_JWT = {
         days=env_int("JWT_REFRESH_TOKEN_LIFETIME_DAYS", 1)
     ),
     "AUTH_HEADER_TYPES": ("Bearer",),
+    # A refreshed session issues a new refresh token and retires the old one,
+    # so a token copied off a shared terminal has a short useful life.
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
 }
 
 # ---------------------------------------------------------------------------

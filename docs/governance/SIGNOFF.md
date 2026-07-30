@@ -55,6 +55,7 @@ University governance (policy items).
 feature code".
 
 **Blocks paths:**
+
 - `backend/queueapp/models.py`
 - `backend/queueapp/serializers.py`
 - `backend/queueapp/permissions.py`
@@ -96,6 +97,7 @@ controller.
 **Blocks tasks:** Phase 1 — "Enforce token ↔ medical-record decoupling".
 
 **Blocks paths:**
+
 - `backend/queueapp/models.py`
 
 ---
@@ -125,6 +127,7 @@ representation — this is monitoring of named employees.
 **Blocks tasks:** Phase 8 — "Implement identifiable audit trail".
 
 **Blocks paths:**
+
 - `backend/queueapp/audit.py`
 - `backend/queueapp/reporting.py`
 
@@ -157,7 +160,22 @@ data about named clinical staff.
 permission boundary".
 
 **Blocks paths:**
-- `backend/queueapp/permissions.py`
+
+- `backend/queueapp/oversight.py`
+
+> **Why this path and not `permissions.py`.** This item originally blocked the
+> whole permissions module, which was too coarse: the six roles' least-privilege
+> rules and the FR3 clinical-priority restriction come from the spec's
+> functional requirements, not from a governance decision, and blocking them
+> stalled work this item does not govern. What G4 actually decides is *who may
+> see oversight and accountability data* — so the gate now sits on
+> `oversight.py`, the module that would grant Supervisor and IT/Support their
+> capabilities.
+>
+> The effect while this item is `PENDING` is that `oversight.py` does not exist,
+> and `permissions.py` therefore grants Supervisor and IT/Support **no
+> capabilities at all**. The gate fails closed: it withholds access rather than
+> merely delaying a file.
 
 ---
 
@@ -177,6 +195,11 @@ evidence:
 - **Retention** — proposed: live queue tokens purged at end of day (or within
   24–48h); audit logs retained ~12 months; aggregate de-identified analytics
   may be kept longer.
+- **Patient phone numbers** — proposed: purged with the visit at end of day.
+  A phone number given for SMS alerts (FR11) is the only identifying field in
+  the queue database, held in its own `NotificationContact` table so it can be
+  purged on its own schedule. Its retention was not covered when this item was
+  first drafted and is added here for the same approval.
 - **Incident response** — proposed: a named system owner, a documented
   breach-notification step, and a defined rollback to the manual offline
   fallback.
@@ -190,6 +213,7 @@ data only**.
 **Blocks tasks:** Phase 10 — "Complete pre-pilot governance checklist".
 
 **Blocks paths:**
+
 - `deploy/production/`
 
 ---

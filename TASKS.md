@@ -32,12 +32,12 @@
 
 ## Phase 2 — Auth & RBAC
 
-- [ ] Configure Django auth with JWT (`djangorestframework-simplejwt`) or server sessions; keys from env
-- [ ] Implement role-based permission classes for all six roles, least privilege
-- [ ] Restrict priority assignment to clinical roles only (Nurse/Vitals, Clinician); block Reception and Pharmacy (FR3)
-- [ ] **[GOV SIGN-OFF] (G4)** Implement Management/Supervisor vs IT/Support permission boundary (analytics/oversight vs system/user admin; neither assigns clinical priority) — depends on permissions sign-off
-- [ ] Add login/logout endpoints and per-role dashboard authorization guards
-- [ ] Write access-control tests: each role can only reach its permitted actions
+- [x] Configure Django auth with JWT (`djangorestframework-simplejwt`) or server sessions; keys from env
+- [x] Implement role-based permission classes for all six roles, least privilege
+- [x] Restrict priority assignment to clinical roles only (Nurse/Vitals, Clinician); block Reception and Pharmacy (FR3)
+- [ ] **[GOV SIGN-OFF] (G4)** Implement Management/Supervisor vs IT/Support permission boundary (analytics/oversight vs system/user admin; neither assigns clinical priority) — **BLOCKED**. Effect while pending: `oversight.py` does not exist, so both roles authenticate and hold **no** capabilities and no dashboard.
+- [x] Add login/logout endpoints and per-role dashboard authorization guards
+- [x] Write access-control tests: each role can only reach its permitted actions
 
 ## Phase 3 — Queue engine (application service layer)
 

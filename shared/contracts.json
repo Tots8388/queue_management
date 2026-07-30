@@ -6,37 +6,44 @@
       "key": "registration_clerk",
       "label": "Registration Clerk",
       "clinical": false,
-      "may_assign_priority": false
+      "may_assign_priority": false,
+      "dashboard": "/staff/reception"
     },
     {
       "key": "nurse_vitals",
       "label": "Nurse / Vitals",
       "clinical": true,
-      "may_assign_priority": true
+      "may_assign_priority": true,
+      "dashboard": "/staff/vitals"
     },
     {
       "key": "clinician",
       "label": "Clinician",
       "clinical": true,
-      "may_assign_priority": true
+      "may_assign_priority": true,
+      "dashboard": "/staff/consultation"
     },
     {
       "key": "pharmacist",
       "label": "Pharmacist",
       "clinical": false,
-      "may_assign_priority": false
+      "may_assign_priority": false,
+      "dashboard": "/staff/pharmacy"
     },
     {
+      "$comment": "dashboard is null until governance item G4 settles the oversight boundary; these roles hold no capabilities until then.",
       "key": "supervisor",
       "label": "Supervisor / Management",
       "clinical": false,
-      "may_assign_priority": false
+      "may_assign_priority": false,
+      "dashboard": null
     },
     {
       "key": "it_support",
       "label": "IT / Support",
       "clinical": false,
-      "may_assign_priority": false
+      "may_assign_priority": false,
+      "dashboard": null
     }
   ],
   "stages": [

@@ -28,6 +28,11 @@ urlpatterns = [
         name="stage-queue",
     ),
     path(
+        "visits/<str:token>/history/",
+        queue_views.VisitHistoryView.as_view(),
+        name="visit-history",
+    ),
+    path(
         "visits/<str:token>/start/",
         queue_views.StartServingView.as_view(),
         name="start-serving",

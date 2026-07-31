@@ -149,6 +149,69 @@ class StageQueueView(QueueActionView):
         )
 
 
+class VisitHistoryView(QueueActionView):
+    """
+    One visit's passage through the stages, for the staff serving it.
+
+    The "View patient history" control in the approved prototypes. It shows
+    stage timings and priority decisions — the queue's own history — and no
+    clinical record, because the queue database holds none. A clinician seeing
+    that a patient has been waiting since 08:10 and has already been round
+    consultation once is exactly the context the return-after-tests path (FR13)
+    depends on.
+    """
+
+    required_capability = Capability.VIEW_STAGE_QUEUE
+
+    def get(self, request: Request, token: str) -> Response:
+        visit = _visit(token)
+
+        return Response(
+            {
+                "token": visit.token,
+                "check_in_time": visit.check_in_time,
+                "current_stage": visit.current_stage,
+                "priority": visit.priority,
+                "priority_label": visit.get_priority_display(),
+                "awaiting_tests": visit.awaiting_tests,
+                "stages": [
+                    {
+                        "stage": event.stage,
+                        "stage_label": event.get_stage_display(),
+                        "entered_at": event.entered_at,
+                        "completed_at": event.completed_at,
+                        "completed_by_role": event.completed_by_role,
+                        "minutes": (
+                            round(event.duration_seconds / 60)
+                            if event.duration_seconds is not None
+                            else None
+                        ),
+                    }
+                    for event in visit.stage_events.all()
+                ],
+                "priority_changes": [
+                    {
+                        "timestamp": change.timestamp,
+                        "from": change.previous_priority,
+                        "to": change.new_priority,
+                        "by_role": change.changed_by_role,
+                        "reason": change.non_sensitive_reason,
+                    }
+                    for change in visit.priority_changes.all()
+                ],
+                "pharmacy": [
+                    {
+                        "state": outcome.state,
+                        "state_label": outcome.get_state_display(),
+                        "timestamp": outcome.timestamp,
+                        "by_role": outcome.by_role,
+                    }
+                    for outcome in visit.pharmacy_outcomes.all()
+                ],
+            }
+        )
+
+
 class StartServingView(QueueActionView):
     required_capability = Capability.CALL_PATIENT
 

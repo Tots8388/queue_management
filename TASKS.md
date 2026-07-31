@@ -111,11 +111,11 @@
 
 ## Phase 10 — Testing & pilot readiness
 
-- [ ] Complete unit tests (queue ordering, priority policy, wait-range, RBAC)
-- [ ] Complete integration tests across queue engine + real-time + frontends
-- [ ] Test exceptional paths: emergency interruption, temporarily-away/missed-turn/recall recovery, return-after-tests, medicine-unavailable
-- [ ] Rehearse the manual offline fallback and reconciliation end-to-end
-- [ ] Produce low-fidelity wireframes → high-fidelity clickable prototype covering all spec §4.9 items (fictional data only)
-- [ ] Run evaluation: heuristic evaluation, cognitive walkthrough, task-based usability testing (targets: ≥80% unaided core-task completion, no unresolved critical safety/privacy defect, mean ease-of-use ≥4/5, ≥80% correctly explain routine vs emergency priority)
-- [ ] **[GOV SIGN-OFF] (G5)** Complete pre-pilot governance checklist: data controller, retention rules, incident response / breach notification, rollback to manual fallback — all approved before any real-data pilot (spec *Assumptions*)
-- [ ] Refine based on evaluation findings (UCD is iterative)
+- [x] Complete unit tests (queue ordering, priority policy, wait-range, RBAC) — 234 tests
+- [x] Complete integration tests across queue engine + real-time + frontends — [`test_integration.py`](./backend/queueapp/test_integration.py) drives whole journeys through the real API; frontend coverage is build + lint + manual verification, **not** automated browser tests
+- [x] Test exceptional paths: emergency interruption, temporarily-away/missed-turn/recall recovery, return-after-tests, medicine-unavailable
+- [x] Rehearse the manual offline fallback and reconciliation end-to-end — automated in `FallbackRehearsalTests`; the **human** rehearsal with staff is task T8 of the usability protocol and has not been run
+- [x] Produce low-fidelity wireframes → high-fidelity clickable prototype covering all spec §4.9 items (fictional data only) — all 11 items mapped in [`docs/evaluation/prototype-coverage.md`](./docs/evaluation/prototype-coverage.md). The low/medium-fidelity artefacts are the supplied prototype sheets; no new wireframes were produced
+- [ ] Run evaluation: heuristic evaluation, cognitive walkthrough, task-based usability testing — **PARTIAL**. [Heuristic evaluation](./docs/evaluation/heuristic-evaluation.md) and [cognitive walkthrough](./docs/evaluation/cognitive-walkthrough.md) done (single evaluator, the author — a weak form of both). [Usability protocol](./docs/evaluation/usability-test-protocol.md) is written but **no session has been run**, so none of the four targets has been measured
+- [ ] **[GOV SIGN-OFF] (G5)** Complete pre-pilot governance checklist: data controller, retention rules, incident response / breach notification, rollback to manual fallback — all approved before any real-data pilot (spec *Assumptions*) — **BLOCKED**
+- [x] Refine based on evaluation findings (UCD is iterative) — 3 findings fixed (dead assistance button, unconfirmed irreversible close, missing patient history); 5 open findings recorded with severity and recommendation

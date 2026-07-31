@@ -47,7 +47,11 @@ export function DisplayBoard() {
   const offline = connection === "offline";
 
   return (
-    <div className="flex min-h-full flex-col bg-brand-900 bg-board-gradient text-white">
+    // min-h-dvh, not min-h-full: a percentage height needs an ancestor with a
+    // resolved height, and without one the board collapses to its content —
+    // leaving a pale band below it on a wall screen, worst of all when the
+    // queue is empty and there is least content to fill it.
+    <div className="flex min-h-dvh flex-col bg-brand-900 bg-board-gradient text-white">
       <header className="flex items-center justify-between border-b border-white/15 px-[3vw] py-[2.2vh]">
         <div className="flex items-center gap-4">
           <span className="grid size-[clamp(2.5rem,4vw,4rem)] place-items-center rounded-xl bg-white/10 ring-1 ring-white/25">

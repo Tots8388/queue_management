@@ -1,11 +1,24 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 
-const inter = Inter({
+/**
+ * Inter, self-hosted rather than fetched from Google Fonts.
+ *
+ * `next/font/google` downloads the font at *build* time. The clinic machine is
+ * on the Medical Center's LAN with no internet dependency by design, so a build
+ * there would fail on a font — which is a silly reason to be unable to deploy.
+ * Shipping the woff2 in the repo makes the build work anywhere, and keeps the
+ * typography identical to the approved design.
+ *
+ * It also means no request leaves the building to render a page, which is the
+ * behaviour the on-premise decision was made for in the first place.
+ */
+const inter = localFont({
+  src: "./fonts/Inter-Variable.woff2",
   variable: "--font-inter",
-  subsets: ["latin"],
   display: "swap",
+  weight: "100 900",
 });
 
 export const metadata: Metadata = {

@@ -48,7 +48,7 @@ export function ConfirmDialog({
   }, [onCancel]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/50 px-4">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/50 px-4 py-4 backdrop-blur-sm sm:items-center">
       <div
         role="alertdialog"
         aria-modal="true"
@@ -56,7 +56,7 @@ export function ConfirmDialog({
         aria-describedby="confirm-body"
         ref={cancelRef}
         tabIndex={-1}
-        className="w-full max-w-sm rounded-xl bg-surface p-6 shadow-lg"
+        className="animate-fade-rise w-full max-w-sm rounded-2xl bg-surface p-6 shadow-lg"
       >
         <h2 id="confirm-heading" className="text-lg font-semibold">
           {title}

@@ -11,7 +11,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { Button, ErrorNote } from "@/components/ui";
+import { Button, ErrorNote, Spinner } from "@/components/ui";
 
 const REASONS = [
   "Clinical assessment at triage",
@@ -66,21 +66,50 @@ export function PriorityDialog({
     else setError("The priority change was not saved.");
   }
 
+  const options = [
+    {
+      value: "emergency",
+      label: "Emergency",
+      hint: "Immediate clinical attention",
+      selected: "border-priority-emergency bg-priority-emergency-soft ring-1 ring-priority-emergency/40",
+      dot: "text-priority-emergency",
+    },
+    {
+      value: "urgent",
+      label: "Urgent",
+      hint: "Next appropriate slot",
+      selected: "border-priority-urgent bg-priority-urgent-soft ring-1 ring-priority-urgent/40",
+      dot: "text-priority-urgent",
+    },
+    {
+      value: "routine",
+      label: "Routine",
+      hint: "Check-in order",
+      selected: "border-priority-routine bg-priority-routine-soft ring-1 ring-priority-routine/30",
+      dot: "text-priority-routine",
+    },
+  ];
+
+  const selectClass =
+    "mt-1.5 min-h-target w-full rounded-lg border border-line bg-surface px-3 py-2.5 shadow-xs " +
+    "focus:border-brand-500 focus:shadow-[0_0_0_3px_var(--color-brand-100)] focus-visible:outline-none";
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/50 px-4">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/50 px-4 py-4 backdrop-blur-sm sm:items-center">
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="priority-heading"
-        className="w-full max-w-md rounded-xl bg-surface p-6"
+        className="animate-fade-rise w-full max-w-md rounded-2xl bg-surface p-6 shadow-lg"
       >
         <h2
           id="priority-heading"
           ref={headingRef}
           tabIndex={-1}
-          className="text-lg font-semibold"
+          className="text-lg font-semibold focus-visible:outline-none"
         >
-          Set clinical priority for {token}
+          Set clinical priority for{" "}
+          <span className="token-figure">{token}</span>
         </h2>
         <p className="mt-1 text-sm text-ink-muted">
           Your role, the time and this reason are recorded. The patient is not
@@ -91,29 +120,38 @@ export function PriorityDialog({
           <fieldset>
             <legend className="font-medium">Priority</legend>
             <div className="mt-2 space-y-2">
-              {[
-                {
-                  value: "emergency",
-                  label: "Emergency — immediate clinical attention",
-                },
-                { value: "urgent", label: "Urgent — next appropriate slot" },
-                { value: "routine", label: "Routine — check-in order" },
-              ].map((option) => (
-                <label
-                  key={option.value}
-                  className="flex min-h-target items-center gap-3 rounded-lg border border-line px-3 py-2"
-                >
-                  <input
-                    type="radio"
-                    name="priority"
-                    value={option.value}
-                    checked={priority === option.value}
-                    onChange={(event) => setPriority(event.target.value)}
-                    className="size-4"
-                  />
-                  {option.label}
-                </label>
-              ))}
+              {options.map((option) => {
+                const checked = priority === option.value;
+                return (
+                  <label
+                    key={option.value}
+                    className={`flex min-h-target cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 transition-colors ${
+                      checked
+                        ? option.selected
+                        : "border-line hover:bg-surface-muted"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="priority"
+                      value={option.value}
+                      checked={checked}
+                      onChange={(event) => setPriority(event.target.value)}
+                      className="size-4 accent-brand-600"
+                    />
+                    <span
+                      aria-hidden="true"
+                      className={`size-2.5 rounded-full bg-current ${option.dot}`}
+                    />
+                    <span className="flex-1">
+                      <span className="font-medium">{option.label}</span>
+                      <span className="block text-sm text-ink-muted">
+                        {option.hint}
+                      </span>
+                    </span>
+                  </label>
+                );
+              })}
             </div>
           </fieldset>
 
@@ -125,7 +163,7 @@ export function PriorityDialog({
               id="reason"
               value={reason}
               onChange={(event) => setReason(event.target.value)}
-              className="mt-1.5 min-h-target w-full rounded-lg border border-line px-3 py-2.5"
+              className={selectClass}
             >
               {REASONS.map((option) => (
                 <option key={option}>{option}</option>
@@ -144,7 +182,7 @@ export function PriorityDialog({
                 value={other}
                 onChange={(event) => setOther(event.target.value)}
                 maxLength={120}
-                className="mt-1.5 w-full rounded-lg border border-line px-3 py-2.5"
+                className="mt-1.5 w-full rounded-lg border border-line bg-surface px-3 py-2.5 shadow-xs focus:border-brand-500 focus:shadow-[0_0_0_3px_var(--color-brand-100)] focus-visible:outline-none"
               />
               <p className="mt-1 text-sm text-ink-muted">
                 Do not record symptoms, a diagnosis or a prescription here.
@@ -154,7 +192,7 @@ export function PriorityDialog({
 
           <ErrorNote message={error} />
 
-          <div className="flex justify-end gap-3">
+          <div className="flex justify-end gap-3 border-t border-line pt-4">
             <Button variant="secondary" onClick={onClose}>
               Cancel
             </Button>
@@ -163,7 +201,13 @@ export function PriorityDialog({
               variant={priority === "emergency" ? "danger" : "primary"}
               disabled={busy}
             >
-              {busy ? "Saving…" : "Save priority"}
+              {busy ? (
+                <>
+                  <Spinner /> Saving…
+                </>
+              ) : (
+                "Save priority"
+              )}
             </Button>
           </div>
         </form>

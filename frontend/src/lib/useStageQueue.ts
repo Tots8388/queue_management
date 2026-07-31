@@ -94,6 +94,10 @@ export function useStageQueue(stage: string) {
   );
 
   return {
+    // Derived from state that already existed — nothing here changes when or
+    // how the queue is fetched, it just lets a table show a skeleton instead of
+    // an "empty queue" message before the first response has arrived.
+    loading: data === null && error === null,
     visits: data?.visits ?? [],
     summary:
       data?.summary ?? {

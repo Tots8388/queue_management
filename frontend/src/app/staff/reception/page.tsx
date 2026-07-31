@@ -11,6 +11,7 @@ import {
   Button,
   Card,
   ConnectionBanner,
+  CountChip,
   ErrorNote,
   TokenFigure,
 } from "@/components/ui";
@@ -118,16 +119,25 @@ export default function ReceptionPage() {
 
       {/* The token just issued, large enough to read out to the patient. */}
       {issued && (
-        <Card className="border-role-reception bg-role-reception-soft">
+        <Card className="animate-fade-rise border-role-reception/40 bg-role-reception-soft">
           <div className="flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <p className="text-sm text-ink-muted">Token issued</p>
-              <p aria-live="polite">
-                <TokenFigure token={issued.token} size="medium" />
-              </p>
-              <p className="mt-1 text-sm text-ink-muted">
-                Give the patient this token and point them to the waiting area.
-              </p>
+            <div className="flex items-center gap-4">
+              <span className="grid size-12 shrink-0 place-items-center rounded-full bg-role-reception text-white">
+                <svg viewBox="0 0 20 20" className="size-6 fill-current" aria-hidden="true">
+                  <path d="M8.2 13.6 4.6 10l-1.2 1.2 4.8 4.8 9-9L16 5.8z" />
+                </svg>
+              </span>
+              <div>
+                <p className="text-sm font-medium text-role-reception">
+                  Token issued
+                </p>
+                <p aria-live="polite">
+                  <TokenFigure token={issued.token} size="medium" />
+                </p>
+                <p className="mt-1 text-sm text-ink-muted">
+                  Give the patient this token and point them to the waiting area.
+                </p>
+              </div>
             </div>
             <Button variant="secondary" onClick={() => setIssued(null)}>
               Done
@@ -150,7 +160,7 @@ export default function ReceptionPage() {
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Enter token…"
               autoComplete="off"
-              className="mt-1.5 w-full rounded-lg border border-line px-3 py-2.5"
+              className="mt-1.5 w-full rounded-lg border border-line bg-surface px-3 py-2.5 shadow-xs focus:border-role-reception focus:shadow-[0_0_0_3px_var(--color-role-reception-soft)] focus-visible:outline-none"
             />
           </div>
           <Button type="submit" accent="bg-role-reception">
@@ -165,9 +175,13 @@ export default function ReceptionPage() {
       </Card>
 
       <section>
-        <h2 className="mb-3 text-lg font-semibold">Current queue</h2>
+        <h2 className="mb-3 flex items-center gap-2 text-lg font-semibold">
+          Current queue
+          <CountChip value={queue.visits.length} />
+        </h2>
         <QueueTable
           caption="Patients waiting at reception"
+          loading={queue.loading}
           visits={queue.visits}
           columns={["stage", "priority", "presence", "waiting"]}
           emptyMessage="Nobody is waiting at reception."
@@ -204,24 +218,31 @@ export default function ReceptionPage() {
                 { value: "printed", label: "Printed token" },
                 { value: "screen", label: "Screen only" },
                 { value: "sms", label: "SMS updates" },
-              ].map((option) => (
-                <label
-                  key={option.value}
-                  className="flex min-h-target items-center gap-2 rounded-lg border border-line px-3 py-2"
-                >
-                  <input
-                    type="radio"
-                    name="preference"
-                    value={option.value}
-                    checked={preference === option.value}
-                    onChange={() =>
-                      setPreference(option.value as typeof preference)
-                    }
-                    className="size-4"
-                  />
-                  {option.label}
-                </label>
-              ))}
+              ].map((option) => {
+                const checked = preference === option.value;
+                return (
+                  <label
+                    key={option.value}
+                    className={`flex min-h-target cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 transition-colors ${
+                      checked
+                        ? "border-role-reception bg-role-reception-soft font-medium text-role-reception ring-1 ring-role-reception/30"
+                        : "border-line hover:bg-surface-muted"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="preference"
+                      value={option.value}
+                      checked={checked}
+                      onChange={() =>
+                        setPreference(option.value as typeof preference)
+                      }
+                      className="size-4 accent-role-reception"
+                    />
+                    {option.label}
+                  </label>
+                );
+              })}
             </div>
           </fieldset>
 
@@ -237,7 +258,7 @@ export default function ReceptionPage() {
                 onChange={(event) => setPhone(event.target.value)}
                 placeholder="+2547…"
                 autoComplete="off"
-                className="mt-1.5 w-full max-w-xs rounded-lg border border-line px-3 py-2.5"
+                className="mt-1.5 w-full max-w-xs rounded-lg border border-line bg-surface px-3 py-2.5 shadow-xs focus:border-role-reception focus:shadow-[0_0_0_3px_var(--color-role-reception-soft)] focus-visible:outline-none"
               />
               <p className="mt-1 text-sm text-ink-muted">
                 Only used to send queue updates, and deleted with the visit.

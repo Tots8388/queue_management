@@ -11,7 +11,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { Button, ErrorNote } from "@/components/ui";
+import { Button, ErrorNote, Skeleton } from "@/components/ui";
 import { api } from "@/lib/api";
 
 type StageRow = {
@@ -82,12 +82,12 @@ export function VisitHistoryDialog({
   }, [token]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/50 px-4">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/50 px-4 py-4 backdrop-blur-sm sm:items-center">
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="history-heading"
-        className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-xl bg-surface p-6 shadow-lg"
+        className="animate-fade-rise max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-surface p-6 shadow-lg"
       >
         <h2
           id="history-heading"
@@ -101,7 +101,14 @@ export function VisitHistoryDialog({
         <ErrorNote message={error} />
 
         {!history ? (
-          !error && <p className="mt-4 text-ink-muted">Loading…</p>
+          !error && (
+            <div className="mt-4 space-y-2">
+              <Skeleton className="h-4 w-40" />
+              <Skeleton className="h-12 w-full" />
+              <Skeleton className="h-12 w-full" />
+              <Skeleton className="h-12 w-full" />
+            </div>
+          )
         ) : (
           <div className="mt-4 space-y-6">
             <p className="text-sm text-ink-muted">

@@ -20,7 +20,7 @@ optional).
 The only screen designed phone-first. Everything else is a desk terminal.
 
 | Region | Content |
-|---|---|
+| --- | --- |
 | Header | Kabarak crest + "Kabarak Medical Center", dark green, menu affordance on the right |
 | Token card | "Your Queue Token" label above a very large token, on a green card. The dominant element on the screen. |
 | Current stage | Row with a green check icon and the stage name, e.g. "Registration Completed" |
@@ -42,7 +42,7 @@ Notes:
 ## 2. Reception dashboard
 
 | Region | Content |
-|---|---|
+| --- | --- |
 | Sidebar | Dark green, crest at top, items: Dashboard, Queue, Patients, Reports, Settings, Logout |
 | Top bar | "Reception Dashboard" left, role name + avatar right |
 | Search | "Enter token…" field with a green "Search" button |
@@ -55,7 +55,7 @@ Priority renders as text in the row — "Routine" in normal ink, "Urgent" in red
 ## 3. Vital signs (nurse) dashboard
 
 | Region | Content |
-|---|---|
+| --- | --- |
 | Sidebar / top bar | Blue |
 | Heading | "Waiting Patients" |
 | Table | Token, Priority (coloured dot + word), Action ("Start" button per row) |
@@ -64,7 +64,7 @@ Priority renders as text in the row — "Routine" in normal ink, "Urgent" in red
 ## 4. Consultation (clinician) dashboard
 
 | Region | Content |
-|---|---|
+| --- | --- |
 | Sidebar / top bar | Purple |
 | Current patient | "Current Patient" label above a very large token — mirrors the patient's own screen |
 | Fields | "Priority" and "Stage" shown as read-style boxes, e.g. "Routine", "Vital Signs Completed" |
@@ -74,7 +74,7 @@ Priority renders as text in the row — "Routine" in normal ink, "Urgent" in red
 ## 5. Pharmacy dashboard
 
 | Region | Content |
-|---|---|
+| --- | --- |
 | Sidebar / top bar | Amber / orange |
 | Heading | "Waiting for Dispensing" |
 | Table | Token, Status ("Medication Ready" green, "Preparing" amber), Action ("Dispense" button per row) |
@@ -87,7 +87,7 @@ Priority renders as text in the row — "Routine" in normal ink, "Urgent" in red
 Implemented in [`../../frontend/src/app/globals.css`](../../frontend/src/app/globals.css).
 
 | Token | Value | Used by |
-|---|---|---|
+| --- | --- | --- |
 | `--color-brand-700` | `#0f4a2e` | Patient header, reception sidebar |
 | `--color-role-reception` | `#16653f` | Reception |
 | `--color-role-nurse` | `#2c5aa8` | Vital signs |
@@ -136,3 +136,26 @@ These are required; the spec outranks the sheets.
 5. **Accessibility additions.** Visible keyboard focus, a skip link, 44px
    minimum targets, and text labels beside every colour-coded dot — none appear
    in the sheets, all are required by WCAG 2.2.
+
+## High-fidelity polish pass
+
+A visual refinement pass was applied over the approved system — elevation and
+radius scales, brand/board gradients, a dot-grid app background, reduced-motion-
+safe animations, and shared `Crest`/`Brand`/`Spinner`/`Skeleton`/`CountChip`
+pieces. It is depth layered on the approved design, **not a recolour**: the
+Kabarak green identity and every contrast, focus and target rule are unchanged.
+The brief is [`../../HIGH_FIDELITY_POLISH_PROMPT.md`](../../HIGH_FIDELITY_POLISH_PROMPT.md);
+captured figures are in [`screenshots/`](./screenshots/).
+
+Two things surfaced during that pass that were **not** cosmetic, and were fixed
+as functional changes rather than styling:
+
+- **The waiting-room board did not fill the screen.** It used a percentage
+  height with no ancestor height to resolve against, so it collapsed to its
+  content — leaving a pale band across a 1920×1080 wall display, worst when the
+  queue was empty and there was least content to hide it. Now `min-h-dvh`.
+- **The font was fetched from Google Fonts at build time.** The clinic machine
+  is on the LAN with no internet dependency by design, so a build there would
+  have failed on a font. Inter is now self-hosted in the repo, which also means
+  no request leaves the building to render a page. Verified by building with
+  all outbound traffic blackholed.

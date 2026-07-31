@@ -12,10 +12,12 @@ import { useState } from "react";
 
 import { PriorityDialog } from "@/components/PriorityDialog";
 import { QueueTable, StageSummaryBar } from "@/components/QueueTable";
+import { VisitHistoryDialog } from "@/components/VisitHistoryDialog";
 import {
   Button,
   Card,
   ConnectionBanner,
+  CountChip,
   ErrorNote,
   PriorityTag,
   TokenFigure,
@@ -27,6 +29,7 @@ export default function ConsultationPage() {
   const queue = useStageQueue("consultation");
   const { can } = useAuth();
   const [priorityFor, setPriorityFor] = useState<string | null>(null);
+  const [historyFor, setHistoryFor] = useState<string | null>(null);
 
   const current =
     queue.visits.find((visit) => visit.stage_status === "in_progress") ?? null;
@@ -108,6 +111,12 @@ export default function ConsultationPage() {
                     Send for laboratory tests
                   </Button>
                 )}
+                <Button
+                  variant="secondary"
+                  onClick={() => setHistoryFor(current.token)}
+                >
+                  View patient history
+                </Button>
               </div>
             </div>
           </>
@@ -115,9 +124,13 @@ export default function ConsultationPage() {
       </Card>
 
       <section>
-        <h2 className="mb-3 text-lg font-semibold">Waiting for consultation</h2>
+        <h2 className="mb-3 flex items-center gap-2 text-lg font-semibold">
+          Waiting for consultation
+          <CountChip value={waiting.length} />
+        </h2>
         <QueueTable
           caption="Patients waiting for the clinician"
+          loading={queue.loading}
           visits={waiting}
           columns={["priority", "presence", "waiting"]}
           emptyMessage="Nobody is waiting for consultation."
@@ -142,6 +155,13 @@ export default function ConsultationPage() {
           )}
         />
       </section>
+
+      {historyFor && (
+        <VisitHistoryDialog
+          token={historyFor}
+          onClose={() => setHistoryFor(null)}
+        />
+      )}
 
       {priorityFor && (
         <PriorityDialog

@@ -8,7 +8,13 @@ import { useState } from "react";
 
 import { PriorityDialog } from "@/components/PriorityDialog";
 import { QueueTable, StageSummaryBar } from "@/components/QueueTable";
-import { Button, Card, ConnectionBanner, ErrorNote } from "@/components/ui";
+import {
+  Button,
+  Card,
+  ConnectionBanner,
+  CountChip,
+  ErrorNote,
+} from "@/components/ui";
 import { useAuth } from "@/lib/auth";
 import { useStageQueue } from "@/lib/useStageQueue";
 
@@ -29,9 +35,13 @@ export default function VitalsPage() {
       <StageSummaryBar summary={queue.summary} />
 
       <section>
-        <h2 className="mb-3 text-lg font-semibold">Waiting patients</h2>
+        <h2 className="mb-3 flex items-center gap-2 text-lg font-semibold">
+          Waiting patients
+          <CountChip value={queue.visits.length} />
+        </h2>
         <QueueTable
           caption="Patients waiting for vital signs"
+          loading={queue.loading}
           visits={queue.visits}
           columns={["priority", "presence", "waiting"]}
           emptyMessage="Nobody is waiting for vital signs."

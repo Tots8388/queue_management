@@ -78,12 +78,12 @@
 
 ## Phase 6 — Wait-range calculation
 
-- [ ] Compute rolling median service time per stage over the last N completed services
-- [ ] Compute base estimate = position-in-stage × rolling median
-- [ ] Apply ±30% buffer and round to a coarse band (e.g. "about 10–20 min")
-- [ ] Degrade to "wait time unavailable" when data is thin (too few completed services for a reliable median)
-- [ ] Always present a range, never a single countdown; surface in patient view
-- [ ] Test range output and the thin-data unavailable path
+- [x] Compute rolling median service time per stage over the last N completed services
+- [x] Compute base estimate = position-in-stage × rolling median
+- [x] Apply ±30% buffer and round to a coarse band (e.g. "about 10–20 min")
+- [x] Degrade to "wait time unavailable" when data is thin (too few completed services for a reliable median)
+- [x] Always present a range, never a single countdown; surface in patient view
+- [x] Test range output and the thin-data unavailable path
 
 ## Phase 7 — SMS notifications (optional channel)
 

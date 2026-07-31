@@ -11,6 +11,7 @@ from . import contracts
 from .models import PharmacyOutcome, ServiceCounter, StaffUser, Visit
 from .permissions import capabilities_for
 from .services import queue as queue_service
+from .services import wait_range
 
 
 class ServiceCounterSerializer(serializers.ModelSerializer):
@@ -163,8 +164,7 @@ class PatientStatusSerializer(serializers.Serializer):
             "stage_status": visit.stage_status,
             "presence_status": visit.presence_status,
             "people_ahead": queue_service.people_ahead(visit),
-            # Phase 6 replaces this. "Unavailable" is the honest default.
-            "wait_range": {"available": False, "text": "Wait time unavailable"},
+            "wait_range": wait_range.estimate_for(visit).as_dict(),
             "last_updated": visit.last_updated,
         }
 

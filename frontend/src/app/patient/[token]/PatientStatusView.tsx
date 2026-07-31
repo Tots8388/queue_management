@@ -158,17 +158,20 @@ export function PatientStatusView({ token }: { token: string }) {
 
             <div className="rounded-xl border border-line bg-surface px-4 py-4 text-center">
               <p className="text-sm text-ink-muted">Estimated waiting</p>
-              {/* Always a range or an honest "unavailable" — never a countdown,
-                  and never a promise. */}
-              <p className="mt-1 text-2xl font-semibold">
-                {status?.wait_range?.available
-                  ? status.wait_range.text
-                  : "Unavailable"}
+              {/* Always a range or an honest message — never a countdown, and
+                  never a single figure that could read as a promise. The server
+                  decides which; this only renders what it was told. */}
+              <p
+                className={`mt-1 font-semibold ${
+                  status?.wait_range?.available ? "text-2xl" : "text-lg"
+                }`}
+              >
+                {status?.wait_range?.text ?? "Wait time unavailable"}
               </p>
               <p className="mt-1 text-sm text-ink-muted">
                 {status?.wait_range?.available
-                  ? "This is a guide, not a promise"
-                  : "Not enough information yet"}
+                  ? "A guide only — it may change"
+                  : "We cannot give a reliable estimate right now"}
               </p>
             </div>
           </section>
@@ -206,6 +209,33 @@ export function PatientStatusView({ token }: { token: string }) {
           If you need to step away, please tell a member of staff so you keep
           your place.
         </p>
+
+        {/*
+          The spec gives each priority level a patient-facing message, and the
+          evaluation asks whether patients can explain routine versus emergency
+          order. This is shown identically to every patient, so it teaches the
+          policy without disclosing anybody's own category.
+        */}
+        <details className="mt-6 rounded-xl border border-line bg-surface px-4 py-3">
+          <summary className="min-h-target cursor-pointer py-2 font-medium">
+            Why might someone be seen before me?
+          </summary>
+          <div className="space-y-2 pb-2 text-sm text-ink-muted">
+            <p>
+              Within each stage, patients are normally seen in the order they
+              checked in.
+            </p>
+            <p>
+              Emergency cases may be served immediately, and urgent cases may be
+              served before routine ones. A nurse or doctor makes that decision,
+              never the system, and every such decision is recorded.
+            </p>
+            <p>
+              This means the queue can move at different speeds at different
+              times of day.
+            </p>
+          </div>
+        </details>
       </main>
 
       <footer className="px-6 py-6 text-center text-sm text-ink-muted">

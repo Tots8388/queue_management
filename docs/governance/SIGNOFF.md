@@ -106,11 +106,19 @@ controller.
 
 ```yaml
 id: audit-granularity
-status: PENDING
-approver:
-approval_date:
-evidence:
+status: APPROVED
+approver: Joshua Tuitoek (project lead), academic-prototype scope
+approval_date: 2026-07-31
+evidence: Project-lead authorisation, 31 July 2026 — NOT a governance-committee minute. Approves the two-layer model for a fictional-data prototype.
 ```
+
+> **Scope of this approval.** It authorises the two-layer model on **fictional
+> data only**: the "identifiable" staff accounts in the prototype are seeded
+> fictions, so nothing real is being retained about a real employee. It does
+> **not** authorise recording the actions of named Medical Center staff. Before
+> any pilot with real accounts, this needs the actual governance body, with
+> staff representation — it is monitoring of named employees, and the retention
+> period for that trail is part of G5.
 
 **What must be approved:** the two-layer model — (1) an **identifiable** audit
 trail recording the specific staff user, role and reason for accountability

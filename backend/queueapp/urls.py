@@ -1,7 +1,7 @@
 from django.urls import path
 from rest_framework_simplejwt.views import TokenRefreshView
 
-from . import auth_views, queue_views, views
+from . import auth_views, oversight_views, queue_views, views
 
 app_name = "queueapp"
 
@@ -63,6 +63,9 @@ urlpatterns = [
         queue_views.PharmacyOutcomeView.as_view(),
         name="pharmacy-outcome",
     ),
+    # Management review — capabilities nobody holds until G4 is settled
+    path("audit/", oversight_views.AuditLogView.as_view(), name="audit-log"),
+    path("reports/", oversight_views.ReportsView.as_view(), name="reports"),
     # Patient and public channels — no authentication
     path(
         "patient/<str:token>/",

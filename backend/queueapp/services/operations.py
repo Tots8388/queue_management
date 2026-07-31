@@ -50,35 +50,37 @@ class QueueError(ValidationError):
 # Audit seam
 # ---------------------------------------------------------------------------
 # FR14 requires an audit entry for every priority change, manual reorder and key
-# completion. The write path for that trail is ``queueapp/audit.py``, which
-# governance item G3 blocks — it decides what identifiable staff data is
-# retained. Until G3 is approved that module does not exist, and the facts below
-# are collected and dropped rather than written.
+# completion. Operations describe what happened; ``queueapp/audit.py`` decides
+# what is written and how much of it is attributed to an individual, which is
+# the question governance item G3 settles.
 #
-# This is loud on purpose: the warning fires once at import so nobody can
-# believe an audit trail is being kept when it is not.
+# If that module is ever missing the fallback below discards the facts, and
+# says so loudly at import — nobody should be able to believe a trail is being
+# kept when it is not.
 
 
 @dataclass(frozen=True)
 class AuditFact:
-    """One accountability event, ready for the trail once G3 is approved."""
+    """One accountability event, on its way to the trail."""
 
     action: str
     actor_role: str
     visit_token: str
     detail: str = ""
-    actor = None
+    # The staff account that acted. Held here so the recorder can attribute
+    # accountability actions to an individual; see queueapp/audit.py for which
+    # actions are attributed and which are not.
+    actor: object | None = None
     extra: dict = field(default_factory=dict)
 
 
-try:  # pragma: no cover — the real recorder arrives with G3 in Phase 8
+try:
     from ..audit import record as record_audit
-except ImportError:
+except ImportError:  # pragma: no cover — only if the audit module is removed
     logger.warning(
-        "Audit trail is NOT being written: queueapp/audit.py does not exist "
-        "because governance item G3 is still PENDING. Queue operations will "
-        "proceed and accountability events will be discarded. See "
-        "docs/governance/SIGNOFF.md."
+        "Audit trail is NOT being written: queueapp/audit.py is missing. "
+        "Queue operations will proceed and accountability events will be "
+        "discarded. See docs/governance/SIGNOFF.md."
     )
 
     def record_audit(fact: AuditFact) -> None:  # noqa: D103
@@ -125,6 +127,7 @@ def check_in(
         AuditFact(
             action="check_in",
             actor_role=getattr(actor, "role", ""),
+            actor=actor,
             visit_token=visit.token,
             detail="Visit registered and token issued",
         )
@@ -196,6 +199,7 @@ def complete_stage(visit: Visit, *, actor, to_stage: str | None = None) -> Visit
         AuditFact(
             action="stage_complete",
             actor_role=role,
+            actor=actor,
             visit_token=visit.token,
             detail=f"{completed_stage} complete, moved to {destination}",
         )
@@ -244,6 +248,7 @@ def send_for_tests(visit: Visit, *, actor) -> Visit:
         AuditFact(
             action="sent_for_tests",
             actor_role=getattr(actor, "role", ""),
+            actor=actor,
             visit_token=visit.token,
             detail="Sent for laboratory tests",
         )
@@ -275,6 +280,7 @@ def return_after_tests(visit: Visit, *, actor) -> Visit:
         AuditFact(
             action="returned_after_tests",
             actor_role=getattr(actor, "role", ""),
+            actor=actor,
             visit_token=visit.token,
             detail="Returned to clinician after tests",
         )
@@ -308,6 +314,7 @@ def record_pharmacy_outcome(visit: Visit, *, state: str, actor) -> PharmacyOutco
         AuditFact(
             action="pharmacy_outcome",
             actor_role=role,
+            actor=actor,
             visit_token=visit.token,
             detail=outcome.get_state_display(),
         )
@@ -360,6 +367,7 @@ def set_priority(visit: Visit, *, priority: str, actor, reason: str) -> Priority
         AuditFact(
             action="priority_change",
             actor_role=role,
+            actor=actor,
             visit_token=visit.token,
             detail=f"{previous} -> {priority}: {reason.strip()}",
         )
@@ -442,6 +450,7 @@ def manual_reorder(visit: Visit, *, actor, reason: str, ahead_of: Visit) -> Visi
         AuditFact(
             action="manual_reorder",
             actor_role=getattr(actor, "role", ""),
+            actor=actor,
             visit_token=visit.token,
             detail=f"Moved ahead of {ahead_of.token}: {reason.strip()}",
         )

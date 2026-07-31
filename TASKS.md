@@ -51,7 +51,7 @@
 - [x] Implement manual routine-reorder requiring a logged reason
 - [x] Implement presence statuses: called → recalled → temporarily-away → missed-turn → resumed, with recall/recovery route (FR9)
 - [x] Implement return-to-clinician after lab tests without losing prior stage history (FR13)
-- [ ] Write audit-log entries for every priority change, manual reorder, and key completion (FR14) — **BLOCKED by G3**. The engine emits every accountability event to an audit seam; `queueapp/audit.py` (the write path) is gated, so the events are currently discarded and a warning says so at startup.
+- [x] Write audit-log entries for every priority change, manual reorder, and key completion (FR14) — unblocked once G3 was approved; the engine's audit seam now writes through `queueapp/audit.py`
 - [x] Establish single authoritative queue state as source of truth for all channels
 - [x] Write unit tests for ordering, override precedence, and stage-transition correctness
 
@@ -95,10 +95,10 @@
 
 ## Phase 8 — Audit log & de-identified reporting
 
-- [ ] **[GOV SIGN-OFF] (G3)** Implement identifiable audit trail (staff user + role + reason) for accountability actions — overrides, manual reorders, key completions (depends on audit-granularity sign-off)
-- [ ] Build de-identified, aggregate analytics/reporting exposing no individual actor
-- [ ] Build management review view over the audit log for authorised roles (FR14)
-- [ ] Verify no clinical or identifying patient data leaks into reports
+- [x] **[GOV SIGN-OFF] (G3)** Implement identifiable audit trail (staff user + role + reason) for accountability actions — overrides, manual reorders, key completions (depends on audit-granularity sign-off) — approved for **academic-prototype scope, fictional data only**
+- [x] Build de-identified, aggregate analytics/reporting exposing no individual actor
+- [x] Build management review view over the audit log for authorised roles (FR14) — `/api/audit/` and `/api/reports/` are built and tested, but **no role can reach them until G4**; a frontend page for them would be dead code until then
+- [x] Verify no clinical or identifying patient data leaks into reports — `assert_de_identified` re-checks every payload before it is served, plus small-count suppression
 
 ## Phase 9 — Local / LAN deployment
 

@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { BackendStatus } from "@/components/BackendStatus";
 import { contracts } from "@/lib/contracts";
 
@@ -16,28 +18,11 @@ const CHANNELS = [
     theme: "border-brand-500",
   },
   {
-    name: "Reception",
-    path: "/staff/reception",
-    description: "Register a patient, record check-in, issue a token.",
-    theme: "border-role-reception",
-  },
-  {
-    name: "Vital signs",
-    path: "/staff/vitals",
-    description: "Take vitals, set clinical priority, send to the clinician.",
+    name: "Staff sign in",
+    path: "/login",
+    description:
+      "Reception, vital signs, consultation and pharmacy dashboards.",
     theme: "border-role-nurse",
-  },
-  {
-    name: "Consultation",
-    path: "/staff/consultation",
-    description: "Consult, set priority with a reason, send to pharmacy.",
-    theme: "border-role-clinician",
-  },
-  {
-    name: "Pharmacy",
-    path: "/staff/pharmacy",
-    description: "Mark medicine ready, issued or unavailable, and close.",
-    theme: "border-role-pharmacy",
   },
 ];
 
@@ -54,10 +39,10 @@ export default function Home() {
       </header>
 
       <main id="main" className="mx-auto w-full max-w-5xl flex-1 px-6 py-10">
-        <h1 className="text-2xl font-semibold">Prototype — screens</h1>
+        <h1 className="text-2xl font-semibold">Where would you like to go?</h1>
         <p className="mt-2 max-w-2xl text-ink-muted">
-          Six channels share one queue state. Each is built in Phase 5; this page
-          is the entry point while the backend is being built.
+          Every screen shares one queue state, so what you see here is what
+          everyone else sees.
         </p>
         <div className="mt-4">
           <BackendStatus />
@@ -65,15 +50,16 @@ export default function Home() {
 
         <ul className="mt-8 grid gap-4 sm:grid-cols-2">
           {CHANNELS.map((channel) => (
-            <li
-              key={channel.path}
-              className={`rounded-lg border-l-4 bg-surface p-5 shadow-sm ${channel.theme}`}
-            >
-              <h2 className="font-semibold">{channel.name}</h2>
-              <p className="mt-1 text-sm text-ink-muted">{channel.description}</p>
-              <p className="mt-3 font-mono text-xs text-ink-muted">
-                {channel.path}
-              </p>
+            <li key={channel.path}>
+              <Link
+                href={channel.path}
+                className={`block h-full rounded-lg border-l-4 bg-surface p-5 shadow-sm hover:bg-brand-50 ${channel.theme}`}
+              >
+                <h2 className="font-semibold">{channel.name}</h2>
+                <p className="mt-1 text-sm text-ink-muted">
+                  {channel.description}
+                </p>
+              </Link>
             </li>
           ))}
         </ul>

@@ -16,6 +16,11 @@ urlpatterns = [
     path("auth/me/", auth_views.CurrentUserView.as_view(), name="current-user"),
     # Reception
     path("visits/check-in/", queue_views.CheckInView.as_view(), name="check-in"),
+    path(
+        "visits/reconcile-fallback/",
+        queue_views.FallbackReconciliationView.as_view(),
+        name="reconcile-fallback",
+    ),
     # Staff queue
     path(
         "queue/<str:stage>/",

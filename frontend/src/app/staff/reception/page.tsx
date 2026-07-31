@@ -28,6 +28,50 @@ export default function ReceptionPage() {
     "printed",
   );
   const [phone, setPhone] = useState("");
+  const [arrivedAt, setArrivedAt] = useState("");
+  const [sheetRef, setSheetRef] = useState("");
+  const [reachedStage, setReachedStage] = useState("registration");
+  const [reconciling, setReconciling] = useState(false);
+
+  /**
+   * Enter one line from the paper sheet kept during an outage (spec FR12).
+   *
+   * The arrival time is sent as typed and interpreted in the browser's own
+   * timezone, which is the clinic's — the same clock the sheet was written by.
+   */
+  async function reconcile(event: React.FormEvent) {
+    event.preventDefault();
+    queue.setError(null);
+
+    if (!arrivedAt) {
+      queue.setError("Enter the arrival time written on the paper sheet.");
+      return;
+    }
+
+    setReconciling(true);
+    try {
+      const visit = await api<StaffVisit>("visits/reconcile-fallback/", {
+        method: "POST",
+        body: {
+          arrived_at: new Date(arrivedAt).toISOString(),
+          paper_reference: sheetRef.trim(),
+          stage: reachedStage,
+        },
+      });
+      setIssued(visit);
+      setArrivedAt("");
+      setSheetRef("");
+      await queue.reload();
+    } catch (caught) {
+      queue.setError(
+        caught instanceof Error
+          ? caught.message
+          : "Could not enter that patient.",
+      );
+    } finally {
+      setReconciling(false);
+    }
+  }
 
   async function register(event: React.FormEvent) {
     event.preventDefault();
@@ -213,13 +257,70 @@ export default function ReceptionPage() {
       </Card>
 
       <Card className="bg-surface-muted">
-        <h2 className="font-semibold">If the system goes down</h2>
+        <h2 className="font-semibold">Paper fallback</h2>
         <p className="mt-2 text-sm text-ink-muted">
-          Switch to the paper fallback: write the time of arrival and the next
-          number in the day&apos;s sequence on a slip, keep the sheet in order,
-          and enter the slips here once the system returns. The full procedure
-          is in the operations runbook.
+          If the system goes down, write each patient&apos;s{" "}
+          <strong>arrival time</strong> and the next number on the paper sheet,
+          and call numbers out loud. When the system returns, enter each line
+          below. The full procedure is in the operations runbook.
         </p>
+
+        <form onSubmit={reconcile} className="mt-4 space-y-4">
+          <div className="flex flex-wrap gap-4">
+            <div>
+              <label htmlFor="arrived" className="block font-medium">
+                Arrival time from the sheet
+              </label>
+              <input
+                id="arrived"
+                type="datetime-local"
+                value={arrivedAt}
+                onChange={(event) => setArrivedAt(event.target.value)}
+                className="mt-1.5 rounded-lg border border-line px-3 py-2.5"
+              />
+              {/* The single thing this form exists to get right. */}
+              <p className="mt-1 text-sm text-ink-muted">
+                The time they arrived — not the time now. This is what keeps
+                their place in the queue.
+              </p>
+            </div>
+
+            <div>
+              <label htmlFor="sheetRef" className="block font-medium">
+                Sheet reference
+              </label>
+              <input
+                id="sheetRef"
+                value={sheetRef}
+                onChange={(event) => setSheetRef(event.target.value)}
+                placeholder="Sheet 2, line 7"
+                autoComplete="off"
+                className="mt-1.5 rounded-lg border border-line px-3 py-2.5"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="reachedStage" className="block font-medium">
+                Stage reached on paper
+              </label>
+              <select
+                id="reachedStage"
+                value={reachedStage}
+                onChange={(event) => setReachedStage(event.target.value)}
+                className="mt-1.5 min-h-target rounded-lg border border-line px-3 py-2.5"
+              >
+                <option value="registration">Registration</option>
+                <option value="vitals">Vital signs</option>
+                <option value="consultation">Consultation</option>
+                <option value="pharmacy">Pharmacy</option>
+              </select>
+            </div>
+          </div>
+
+          <Button type="submit" variant="secondary" disabled={reconciling}>
+            {reconciling ? "Entering…" : "Enter from paper fallback"}
+          </Button>
+        </form>
       </Card>
     </div>
   );

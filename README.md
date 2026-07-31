@@ -67,6 +67,18 @@ pinned at the top of each script: backend `8000`, frontend `3000`.
 Setup details, including the PostgreSQL vs SQLite decision, are in
 [`docs/development.md`](./docs/development.md).
 
+## Running it in the clinic
+
+- **[Manual fallback and reconciliation](./docs/operations/offline-fallback.md)** —
+  what staff do when the system is down, and how the paper sheets get entered
+  afterwards without anyone losing their place in the queue. **Print this one.**
+- [LAN deployment](./docs/operations/lan-deployment.md) — the clinic machine,
+  the network, and where secrets live.
+- [Backups and recovery](./docs/operations/backup-and-recovery.md) — including
+  the restore drill, which is the part that matters.
+- [Resilience](./docs/operations/resilience.md) — UPS, the single point of
+  failure, and what the recovery path actually is.
+
 ## Governance gate
 
 The spec requires institutional (Medical Center / University governance)

@@ -136,6 +136,64 @@ def check_in(
     return visit
 
 
+@transaction.atomic
+def reconcile_fallback_visit(
+    *,
+    actor,
+    arrived_at,
+    paper_reference: str = "",
+    stage: str = "registration",
+) -> Visit:
+    """
+    Enter a patient who was seen on paper during an outage (spec FR12).
+
+    The arrival time comes from the paper sheet, not the clock. That is the
+    whole point: if reconciliation stamped everyone with the moment they were
+    typed in, the people who waited longest during the outage would be sent to
+    the back of the queue for having been patient. ``queue_order_time`` is set
+    from the same recorded time, so their place is restored.
+
+    The patient is issued a normal system token; the paper reference is kept in
+    the audit detail so the sheet and the record can be matched afterwards.
+    """
+    now = timezone.now()
+
+    if arrived_at > now:
+        raise QueueError("A recorded arrival time cannot be in the future.")
+    # A slip from a previous day belongs to a previous day's queue. Beyond
+    # this, a mistyped date is far more likely than a genuine entry.
+    if arrived_at < now - timezone.timedelta(hours=24):
+        raise QueueError(
+            "That arrival time is more than 24 hours ago. Check the date on "
+            "the paper sheet."
+        )
+    if stage not in STAGE_ORDER or stage == "complete":
+        raise QueueError(f"{stage!r} is not a stage a patient can be waiting at.")
+
+    visit = Visit.check_in(check_in_time=arrived_at)
+    visit.queue_order_time = arrived_at
+    visit.current_stage = stage
+    visit.save()
+
+    StageEvent.objects.create(visit=visit, stage=stage, entered_at=arrived_at)
+
+    reference = paper_reference.strip()[:40]
+    record_audit(
+        AuditFact(
+            action="fallback_reconciliation",
+            actor_role=getattr(actor, "role", ""),
+            actor=actor,
+            visit_token=visit.token,
+            detail=(
+                f"Entered from paper fallback; arrived {arrived_at.isoformat()}"
+                + (f"; sheet reference {reference}" if reference else "")
+            ),
+        )
+    )
+    broadcast.queue_changed(token=visit.token, stages=[stage])
+    return visit
+
+
 # ---------------------------------------------------------------------------
 # Stage transitions
 # ---------------------------------------------------------------------------

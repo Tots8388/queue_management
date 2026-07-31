@@ -102,12 +102,12 @@
 
 ## Phase 9 — Local / LAN deployment
 
-- [ ] Package backend (Django + DRF + PostgreSQL + Channels) to run on an always-on local machine
-- [ ] Configure LAN access for staff terminals, patient view, and public-display screens (no cloud dependency for core operation)
-- [ ] Set up regular local database backups and a documented recovery path
-- [ ] Document power/UPS and single-point-of-failure mitigation (spare box / recovery path)
-- [ ] Write the manual offline fallback procedure (paper/verbal) and later-reconciliation steps (FR12)
-- [ ] Store any credentials in the machine's environment / secrets store, never in the repo
+- [x] Package backend (Django + DRF + PostgreSQL + Channels) to run on an always-on local machine — [`docs/operations/lan-deployment.md`](./docs/operations/lan-deployment.md), incl. Daphne under NSSM/Task Scheduler
+- [x] Configure LAN access for staff terminals, patient view, and public-display screens (no cloud dependency for core operation)
+- [x] Set up regular local database backups and a documented recovery path — [`deploy/backup_db.bat`](./deploy/backup_db.bat) + [`docs/operations/backup-and-recovery.md`](./docs/operations/backup-and-recovery.md), incl. a restore drill
+- [x] Document power/UPS and single-point-of-failure mitigation (spare box / recovery path) — [`docs/operations/resilience.md`](./docs/operations/resilience.md)
+- [x] Write the manual offline fallback procedure (paper/verbal) and later-reconciliation steps (FR12) — [`docs/operations/offline-fallback.md`](./docs/operations/offline-fallback.md), with a working reconciliation endpoint and reception form that preserve recorded arrival times
+- [x] Store any credentials in the machine's environment / secrets store, never in the repo
 
 ## Phase 10 — Testing & pilot readiness
 

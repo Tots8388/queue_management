@@ -25,6 +25,7 @@ from .permissions import (
 )
 from .serializers import (
     CheckInSerializer,
+    FallbackReconciliationSerializer,
     PatientStatusSerializer,
     PharmacyOutcomeSerializer,
     PresenceSerializer,
@@ -98,6 +99,33 @@ class CheckInView(QueueActionView):
 # ---------------------------------------------------------------------------
 # Staff queue views
 # ---------------------------------------------------------------------------
+
+
+class FallbackReconciliationView(QueueActionView):
+    """
+    Enter a patient recorded on paper during an outage (spec FR12).
+
+    Restricted to the role that runs the fallback. Each entry is written to the
+    audit trail, so what was added after the fact is distinguishable from what
+    the system recorded live.
+    """
+
+    required_capability = Capability.OPERATE_FALLBACK
+
+    def post(self, request: Request) -> Response:
+        serializer = FallbackReconciliationSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        visit = operations.reconcile_fallback_visit(
+            actor=request.user,
+            arrived_at=data["arrived_at"],
+            paper_reference=data.get("paper_reference", ""),
+            stage=data["stage"],
+        )
+        return Response(
+            StaffVisitSerializer(visit).data, status=status.HTTP_201_CREATED
+        )
 
 
 class StageQueueView(QueueActionView):

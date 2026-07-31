@@ -189,6 +189,20 @@ class CheckInSerializer(serializers.Serializer):
     counter_id = serializers.IntegerField(required=False, allow_null=True)
 
 
+class FallbackReconciliationSerializer(serializers.Serializer):
+    """One line from the paper sheet kept during an outage (spec FR12)."""
+
+    arrived_at = serializers.DateTimeField(
+        help_text="The arrival time written on the paper sheet, not the time now."
+    )
+    paper_reference = serializers.CharField(
+        max_length=40, required=False, allow_blank=True
+    )
+    stage = serializers.ChoiceField(
+        choices=contracts.keys("stages"), default="registration"
+    )
+
+
 class PrioritySerializer(serializers.Serializer):
     priority = serializers.ChoiceField(choices=Visit.Priority.choices)
     # Free clinical text does not belong in this database, so the reason is

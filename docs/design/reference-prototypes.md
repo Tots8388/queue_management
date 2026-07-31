@@ -144,7 +144,7 @@ radius scales, brand/board gradients, a dot-grid app background, reduced-motion-
 safe animations, and shared `Crest`/`Brand`/`Spinner`/`Skeleton`/`CountChip`
 pieces. It is depth layered on the approved design, **not a recolour**: the
 Kabarak green identity and every contrast, focus and target rule are unchanged.
-The brief is [`../../HIGH_FIDELITY_POLISH_PROMPT.md`](../../HIGH_FIDELITY_POLISH_PROMPT.md);
+The brief is [`../HIGH_FIDELITY_POLISH_PROMPT.md`](../HIGH_FIDELITY_POLISH_PROMPT.md);
 captured figures are in [`screenshots/`](./screenshots/).
 
 Two things surfaced during that pass that were **not** cosmetic, and were fixed

@@ -10,10 +10,14 @@
  * The rule it exists to honour is absolute — no names, no priority categories,
  * no diagnoses, no prescriptions. The server sends a two-field payload, and
  * this component renders those two fields and nothing else.
+ *
+ * Everything scales with the viewport (clamp / vw-relative sizes) so the same
+ * page fills a 55" wall screen and still holds together on a laptop.
  */
 
 import { useEffect, useState } from "react";
 
+import { Crest, HomeLink } from "@/components/ui";
 import { api } from "@/lib/api";
 import type { DisplayState } from "@/lib/types";
 import { useQueueChannel } from "@/lib/useQueueChannel";
@@ -40,57 +44,95 @@ export function DisplayBoard() {
   }, []);
 
   const rows = data?.rows ?? fallback?.rows ?? [];
+  const offline = connection === "offline";
 
   return (
-    <div className="flex min-h-full flex-col bg-brand-900 text-white">
-      <header className="flex items-baseline justify-between px-8 py-6">
-        <h1 className="text-2xl font-semibold sm:text-3xl">
-          Kabarak University Medical Center
-        </h1>
-        <p className="text-2xl tabular-nums text-brand-100">{clock}</p>
+    <div className="flex min-h-full flex-col bg-brand-900 bg-board-gradient text-white">
+      <header className="flex items-center justify-between border-b border-white/15 px-[3vw] py-[2.2vh]">
+        <div className="flex items-center gap-4">
+          <span className="grid size-[clamp(2.5rem,4vw,4rem)] place-items-center rounded-xl bg-white/10 ring-1 ring-white/25">
+            <Crest className="size-[clamp(1.6rem,2.6vw,2.6rem)]" />
+          </span>
+          <div className="leading-tight">
+            <h1 className="text-[clamp(1.5rem,2.6vw,2.75rem)] font-semibold">
+              Kabarak University Medical Center
+            </h1>
+            <p className="text-[clamp(0.9rem,1.3vw,1.4rem)] text-brand-100">
+              Waiting-room display
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-[2vw]">
+          <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-1.5 text-[clamp(0.8rem,1.1vw,1.15rem)] font-medium">
+            <span
+              aria-hidden="true"
+              className={`inline-block size-3 rounded-full ${
+                offline ? "bg-status-missed" : "bg-status-complete pulse-dot"
+              }`}
+            />
+            {offline ? "Offline" : "Live"}
+          </span>
+          <p className="text-[clamp(1.4rem,2.4vw,2.75rem)] font-semibold tabular-nums text-brand-100">
+            {clock}
+          </p>
+        </div>
       </header>
 
-      <main id="main" className="flex-1 px-8 pb-8">
-        <div className="grid grid-cols-[1fr_1.4fr] gap-4 border-b border-white/25 pb-3 text-xl uppercase tracking-wide text-brand-100 sm:text-2xl">
+      <main id="main" className="flex flex-1 flex-col px-[3vw] pb-[2.5vh] pt-[2vh]">
+        <div className="grid grid-cols-[1fr_1.5fr] gap-4 border-b border-white/25 pb-[1.4vh] text-[clamp(1rem,1.6vw,1.75rem)] font-medium uppercase tracking-[0.12em] text-brand-100">
           <span>Token</span>
-          <span>Please go to</span>
+          <span>Please proceed to</span>
         </div>
 
         {/* Announced politely: a screen reader in the waiting area should not
             interrupt, but the board does update. */}
-        <ul aria-live="polite" className="divide-y divide-white/15">
-          {rows.map((row) => (
+        <ul aria-live="polite" className="flex-1">
+          {rows.map((row, index) => (
             <li
               key={row.token}
-              className="grid grid-cols-[1fr_1.4fr] items-center gap-4 py-5"
+              className={`grid grid-cols-[1fr_1.5fr] items-center gap-4 border-b border-white/10 py-[1.6vh] ${
+                index === 0 ? "-mx-[1.5vw] rounded-2xl bg-white/[0.06] px-[1.5vw]" : ""
+              }`}
             >
               {/* Deliberately huge: this is read from across a waiting room. */}
-              <span className="token-figure text-5xl font-bold sm:text-7xl">
+              <span className="token-figure text-[clamp(2.5rem,6vw,6.5rem)] font-bold leading-none">
                 {row.token}
               </span>
-              <span className="text-3xl sm:text-5xl">{row.destination}</span>
+              <span className="flex items-center gap-[1.2vw] text-[clamp(1.6rem,4vw,4.5rem)] font-medium leading-none">
+                <span aria-hidden="true" className="text-brand-100/70">
+                  →
+                </span>
+                {row.destination}
+              </span>
             </li>
           ))}
         </ul>
 
         {rows.length === 0 && (
-          <p className="py-16 text-center text-3xl text-brand-100">
-            No patients are being called at the moment.
-          </p>
+          <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
+            <span className="grid size-[clamp(3.5rem,6vw,6rem)] place-items-center rounded-full bg-white/10">
+              <Crest className="size-[clamp(2rem,3.5vw,3.5rem)]" />
+            </span>
+            <p className="text-[clamp(1.4rem,2.4vw,2.5rem)] text-brand-100">
+              No patients are being called at the moment.
+            </p>
+          </div>
         )}
       </main>
 
-      <footer className="border-t border-white/20 px-8 py-4 text-lg text-brand-100">
-        {connection === "offline" ? (
+      <footer className="flex items-center justify-between gap-4 border-t border-white/20 px-[3vw] py-[1.6vh] text-[clamp(0.9rem,1.3vw,1.4rem)] text-brand-100">
+        {offline ? (
           <span className="text-priority-urgent-soft">
             Not connected — this board may be out of date. Please listen for
             staff calling tokens.
           </span>
         ) : (
-          <span>
-            Please watch for your token. Staff will also call it out.
-          </span>
+          <span>Please watch for your token. Staff will also call it out.</span>
         )}
+
+        {/* Kept small and in the footer: this screen is a wall display, and
+            the way out matters to whoever set it up, not to the waiting room. */}
+        <HomeLink className="shrink-0 text-base" />
       </footer>
     </div>
   );

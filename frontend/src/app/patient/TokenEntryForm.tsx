@@ -38,7 +38,7 @@ export function TokenEntryForm() {
         inputMode="text"
         aria-describedby={error ? "token-error" : "token-hint"}
         aria-invalid={error ? true : undefined}
-        className="token-figure mt-2 w-full rounded-lg border-2 border-brand-100 bg-white px-4 py-3 text-2xl text-ink placeholder:text-ink-muted/60"
+        className="token-figure mt-2 w-full rounded-xl border-2 border-white/70 bg-white px-4 py-4 text-center text-3xl font-semibold text-ink shadow-lg transition-shadow placeholder:font-normal placeholder:text-ink-subtle/60 focus:border-white focus:shadow-[0_0_0_4px_rgba(255,255,255,0.35)] focus-visible:outline-none"
         placeholder="T-041"
       />
       <p id="token-hint" className="mt-2 text-sm text-brand-100">
@@ -57,9 +57,10 @@ export function TokenEntryForm() {
 
       <button
         type="submit"
-        className="mt-6 w-full rounded-lg bg-white px-4 py-3 text-lg font-semibold text-brand-700 hover:bg-brand-50"
+        className="mt-6 flex min-h-target w-full items-center justify-center gap-2 rounded-xl bg-white px-4 py-4 text-lg font-semibold text-brand-700 shadow-lg transition-[background-color,transform] hover:bg-brand-50 active:translate-y-px"
       >
         Check my queue
+        <span aria-hidden="true">→</span>
       </button>
     </form>
   );

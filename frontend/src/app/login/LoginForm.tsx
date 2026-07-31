@@ -3,8 +3,14 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-import { Button, ErrorNote } from "@/components/ui";
+import { Button, ErrorNote, Spinner } from "@/components/ui";
 import { useAuth } from "@/lib/auth";
+
+const inputClass =
+  "mt-1.5 w-full rounded-lg border border-line bg-surface px-3 py-2.5 shadow-xs " +
+  "transition-[border-color,box-shadow] placeholder:text-ink-subtle " +
+  "focus:border-brand-500 focus:shadow-[0_0_0_3px_var(--color-brand-100)] focus-visible:outline-none " +
+  "aria-[invalid=true]:border-priority-emergency";
 
 export function LoginForm() {
   const { signIn } = useAuth();
@@ -56,7 +62,8 @@ export function LoginForm() {
           onChange={(event) => setUsername(event.target.value)}
           autoComplete="username"
           required
-          className="mt-1.5 w-full rounded-lg border border-line bg-surface px-3 py-2.5"
+          aria-invalid={error ? true : undefined}
+          className={inputClass}
         />
       </div>
 
@@ -72,14 +79,21 @@ export function LoginForm() {
           onChange={(event) => setPassword(event.target.value)}
           autoComplete="current-password"
           required
-          className="mt-1.5 w-full rounded-lg border border-line bg-surface px-3 py-2.5"
+          aria-invalid={error ? true : undefined}
+          className={inputClass}
         />
       </div>
 
       <ErrorNote message={error} />
 
-      <Button type="submit" fullWidth disabled={busy}>
-        {busy ? "Signing in…" : "Sign in"}
+      <Button type="submit" fullWidth disabled={busy} size="lg">
+        {busy ? (
+          <>
+            <Spinner /> Signing in…
+          </>
+        ) : (
+          "Sign in"
+        )}
       </Button>
     </form>
   );

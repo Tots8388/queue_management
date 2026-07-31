@@ -57,13 +57,13 @@
 
 ## Phase 4 — Real-time (Django Channels / WebSockets)
 
-- [ ] Configure Channels consumers and channel layer
-- [ ] Push queue-state changes to the patient status view
-- [ ] Push queue-state changes to staff dashboards
-- [ ] Push queue-state changes to the public display board
-- [ ] Ensure public-channel payloads carry anonymous token + destination only (no names/category/medical detail)
-- [ ] Handle reconnection/state resync so a reconnecting client gets current state
-- [ ] Test real-time propagation across patient / staff / public channels
+- [x] Configure Channels consumers and channel layer
+- [x] Push queue-state changes to the patient status view
+- [x] Push queue-state changes to staff dashboards
+- [x] Push queue-state changes to the public display board
+- [x] Ensure public-channel payloads carry anonymous token + destination only (no names/category/medical detail)
+- [x] Handle reconnection/state resync so a reconnecting client gets current state
+- [x] Test real-time propagation across patient / staff / public channels
 
 ## Phase 5 — Frontends
 

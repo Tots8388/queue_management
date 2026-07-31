@@ -31,6 +31,7 @@ from ..models import (
     StageEvent,
     Visit,
 )
+from . import broadcast
 
 logger = logging.getLogger(__name__)
 
@@ -128,6 +129,7 @@ def check_in(
             detail="Visit registered and token issued",
         )
     )
+    broadcast.queue_changed(token=visit.token, stages=["registration"])
     return visit
 
 
@@ -198,6 +200,9 @@ def complete_stage(visit: Visit, *, actor, to_stage: str | None = None) -> Visit
             detail=f"{completed_stage} complete, moved to {destination}",
         )
     )
+    # Both stages: the one left must stop showing this patient, and the one
+    # joined must start.
+    broadcast.queue_changed(token=visit.token, stages=[completed_stage, destination])
     return visit
 
 
@@ -214,6 +219,7 @@ def start_serving(visit: Visit, *, actor, counter=None) -> Visit:
     visit.save(
         update_fields=["stage_status", "presence_status", "assigned_counter", "last_updated"]
     )
+    broadcast.queue_changed(token=visit.token, stages=[visit.current_stage])
     return visit
 
 
@@ -241,6 +247,7 @@ def send_for_tests(visit: Visit, *, actor) -> Visit:
             detail="Sent for laboratory tests",
         )
     )
+    broadcast.queue_changed(token=visit.token, stages=["consultation"])
     return visit
 
 
@@ -271,6 +278,7 @@ def return_after_tests(visit: Visit, *, actor) -> Visit:
             detail="Returned to clinician after tests",
         )
     )
+    broadcast.queue_changed(token=visit.token, stages=["consultation"])
     return visit
 
 
@@ -301,6 +309,7 @@ def record_pharmacy_outcome(visit: Visit, *, state: str, actor) -> PharmacyOutco
             detail=outcome.get_state_display(),
         )
     )
+    broadcast.queue_changed(token=visit.token, stages=["pharmacy"])
     return outcome
 
 
@@ -329,6 +338,7 @@ def set_priority(visit: Visit, *, priority: str, actor, reason: str) -> Priority
         raise QueueError("A non-sensitive reason is required for a priority change.")
 
     previous = visit.priority
+    stage_before = visit.current_stage
     change = PriorityChange.objects.create(
         visit=visit,
         previous_priority=previous,
@@ -350,6 +360,12 @@ def set_priority(visit: Visit, *, priority: str, actor, reason: str) -> Priority
             visit_token=visit.token,
             detail=f"{previous} -> {priority}: {reason.strip()}",
         )
+    )
+    visit.refresh_from_db()
+    # An escalation may have moved the patient, so both the stage they were in
+    # and the one they are in now need to hear about it.
+    broadcast.queue_changed(
+        token=visit.token, stages=list({stage_before, visit.current_stage})
     )
     return change
 
@@ -427,6 +443,7 @@ def manual_reorder(visit: Visit, *, actor, reason: str, ahead_of: Visit) -> Visi
             detail=f"Moved ahead of {ahead_of.token}: {reason.strip()}",
         )
     )
+    broadcast.queue_changed(token=visit.token, stages=[visit.current_stage])
     return visit
 
 
@@ -457,4 +474,5 @@ def set_presence(visit: Visit, *, presence: str, actor) -> Visit:
         visit.stage_status = Visit.StageStatus.WAITING
 
     visit.save(update_fields=["presence_status", "stage_status", "last_updated"])
+    broadcast.queue_changed(token=visit.token, stages=[visit.current_stage])
     return visit

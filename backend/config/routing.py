@@ -3,12 +3,20 @@ WebSocket routes.
 
 Three channels share one authoritative queue state (spec: Architecture):
 
-  ws/patient/<token>/   personal status — token, stage, people ahead, wait range
-  ws/staff/<stage>/     role-based dashboard queue for one service stage
   ws/display/           public waiting-room board — anonymous token + destination
+  ws/patient/<token>/   personal status — stage, people ahead, wait range
+  ws/staff/<stage>/     role-based dashboard queue for one service stage
 
-Consumers are implemented in Phase 4. This module exists now so the ASGI
-application is wired end to end and the transport can be verified.
+Only the staff route is authenticated: patients have no accounts, and the board
+drives a screen on a wall.
 """
 
-websocket_urlpatterns: list = []
+from django.urls import path
+
+from queueapp import consumers
+
+websocket_urlpatterns = [
+    path("ws/display/", consumers.PublicDisplayConsumer.as_asgi()),
+    path("ws/patient/<str:token>/", consumers.PatientStatusConsumer.as_asgi()),
+    path("ws/staff/<str:stage>/", consumers.StaffQueueConsumer.as_asgi()),
+]

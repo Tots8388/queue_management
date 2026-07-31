@@ -20,10 +20,16 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
 django_asgi_application = get_asgi_application()
 
 from config.routing import websocket_urlpatterns  # noqa: E402
+from queueapp.channels_auth import JWTAuthMiddleware  # noqa: E402
 
 application = ProtocolTypeRouter(
     {
         "http": django_asgi_application,
-        "websocket": AuthMiddlewareStack(URLRouter(websocket_urlpatterns)),
+        # Session auth first (the Django admin and any same-origin page), then
+        # JWT from the query string for staff dashboards, which cannot set an
+        # Authorization header on a WebSocket handshake.
+        "websocket": AuthMiddlewareStack(
+            JWTAuthMiddleware(URLRouter(websocket_urlpatterns))
+        ),
     }
 )

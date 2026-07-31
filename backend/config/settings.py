@@ -265,6 +265,12 @@ WAIT_RANGE = {
 # ---------------------------------------------------------------------------
 SMS_ENABLED = env_bool("SMS_ENABLED", False)
 SMS_PROVIDER = os.environ.get("SMS_PROVIDER", "africastalking").strip().lower()
+# Short on purpose: a gateway having a slow morning must never be the reason a
+# member of staff is left waiting at a terminal.
+SMS_TIMEOUT_SECONDS = env_int("SMS_TIMEOUT_SECONDS", 8)
+# Send inline rather than on a background thread. Off in normal operation; on
+# under test so dispatch is deterministic.
+SMS_SYNCHRONOUS = env_bool("SMS_SYNCHRONOUS", False) or RUNNING_TESTS
 
 # ---------------------------------------------------------------------------
 # Internationalisation / static files

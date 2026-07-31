@@ -87,11 +87,11 @@
 
 ## Phase 7 — SMS notifications (optional channel)
 
-- [ ] Build a notification module abstraction; screen + printed token are core, SMS/phone optional (FR11)
-- [ ] Integrate Africa's Talking SMS behind env-based credentials (Twilio as alternative interface)
-- [ ] Send optional stage-change alerts per patient `notification_preference`
-- [ ] Ensure SMS is the only component needing outbound internet; core queue works without it
-- [ ] Test with SMS disabled to confirm core flow is unaffected
+- [x] Build a notification module abstraction; screen + printed token are core, SMS/phone optional (FR11)
+- [x] Integrate Africa's Talking SMS behind env-based credentials (Twilio as alternative interface)
+- [x] Send optional stage-change alerts per patient `notification_preference`
+- [x] Ensure SMS is the only component needing outbound internet; core queue works without it
+- [x] Test with SMS disabled to confirm core flow is unaffected
 
 ## Phase 8 — Audit log & de-identified reporting
 

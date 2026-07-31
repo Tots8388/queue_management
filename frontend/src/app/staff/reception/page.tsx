@@ -24,16 +24,28 @@ export default function ReceptionPage() {
   const [search, setSearch] = useState("");
   const [found, setFound] = useState<string | null>(null);
   const [registering, setRegistering] = useState(false);
+  const [preference, setPreference] = useState<"screen" | "printed" | "sms">(
+    "printed",
+  );
+  const [phone, setPhone] = useState("");
 
-  async function register(preference: "screen" | "printed") {
+  async function register(event: React.FormEvent) {
+    event.preventDefault();
     setRegistering(true);
     queue.setError(null);
+
     try {
       const visit = await api<StaffVisit>("visits/check-in/", {
         method: "POST",
-        body: { notification_preference: preference },
+        body: {
+          notification_preference: preference,
+          ...(preference === "sms" && phone.trim()
+            ? { phone_number: phone.trim() }
+            : {}),
+        },
       });
       setIssued(visit);
+      setPhone("");
       await queue.reload();
     } catch (caught) {
       queue.setError(
@@ -138,22 +150,67 @@ export default function ReceptionPage() {
         />
       </section>
 
-      <div className="flex flex-wrap gap-3">
-        <Button
-          variant="secondary"
-          disabled={registering}
-          onClick={() => register("printed")}
-        >
-          Register — printed token
-        </Button>
-        <Button
-          accent="bg-role-reception"
-          disabled={registering}
-          onClick={() => register("screen")}
-        >
-          {registering ? "Registering…" : "+ Register patient"}
-        </Button>
-      </div>
+      <Card>
+        <h2 className="font-semibold">Register a patient</h2>
+        <form onSubmit={register} className="mt-4 space-y-4">
+          <fieldset>
+            <legend className="font-medium">How should they be updated?</legend>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {[
+                { value: "printed", label: "Printed token" },
+                { value: "screen", label: "Screen only" },
+                { value: "sms", label: "SMS updates" },
+              ].map((option) => (
+                <label
+                  key={option.value}
+                  className="flex min-h-target items-center gap-2 rounded-lg border border-line px-3 py-2"
+                >
+                  <input
+                    type="radio"
+                    name="preference"
+                    value={option.value}
+                    checked={preference === option.value}
+                    onChange={() =>
+                      setPreference(option.value as typeof preference)
+                    }
+                    className="size-4"
+                  />
+                  {option.label}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+
+          {preference === "sms" && (
+            <div>
+              <label htmlFor="phone" className="block font-medium">
+                Mobile number
+              </label>
+              <input
+                id="phone"
+                type="tel"
+                value={phone}
+                onChange={(event) => setPhone(event.target.value)}
+                placeholder="+2547…"
+                autoComplete="off"
+                className="mt-1.5 w-full max-w-xs rounded-lg border border-line px-3 py-2.5"
+              />
+              <p className="mt-1 text-sm text-ink-muted">
+                Only used to send queue updates, and deleted with the visit.
+                Messages carry the token and destination only.
+              </p>
+            </div>
+          )}
+
+          <Button
+            type="submit"
+            accent="bg-role-reception"
+            disabled={registering}
+          >
+            {registering ? "Registering…" : "+ Register patient"}
+          </Button>
+        </form>
+      </Card>
 
       <Card className="bg-surface-muted">
         <h2 className="font-semibold">If the system goes down</h2>

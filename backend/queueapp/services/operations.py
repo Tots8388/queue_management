@@ -31,7 +31,7 @@ from ..models import (
     StageEvent,
     Visit,
 )
-from . import broadcast
+from . import broadcast, notifications
 
 logger = logging.getLogger(__name__)
 
@@ -203,6 +203,7 @@ def complete_stage(visit: Visit, *, actor, to_stage: str | None = None) -> Visit
     # Both stages: the one left must stop showing this patient, and the one
     # joined must start.
     broadcast.queue_changed(token=visit.token, stages=[completed_stage, destination])
+    notifications.notify_stage_change(visit)
     return visit
 
 
@@ -300,6 +301,8 @@ def record_pharmacy_outcome(visit: Visit, *, state: str, actor) -> PharmacyOutco
         complete_stage(visit, actor=actor, to_stage="complete")
     else:
         visit.save(update_fields=["last_updated"])
+        if state == PharmacyOutcome.State.READY:
+            notifications.notify_medicine_ready(visit)
 
     record_audit(
         AuditFact(

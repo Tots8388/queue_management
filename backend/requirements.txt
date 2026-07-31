@@ -19,3 +19,7 @@ psycopg[binary]==3.2.10
 # Configuration: read .env into the environment, parse DATABASE_URL.
 python-dotenv==1.1.1
 dj-database-url==3.0.1
+
+# Outbound HTTP for the optional SMS gateway — the only component in the system
+# that reaches beyond the Medical Center's LAN.
+requests==2.32.5

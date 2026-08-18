@@ -15,6 +15,13 @@ signs, consultation and pharmacy dashboards
 > evaluators and the task-based testing in
 > [`usability-test-protocol.md`](./usability-test-protocol.md).
 
+> **Inspected the build of 31 July 2026**, and kept as written — an evaluation
+> edited to match a later build stops being a record of what was inspected.
+> Since then tokens became random and week-scoped (`K492`, not `T-041`) and the
+> waiting-room board became a tracking board listing everyone in the clinic; see
+> [tracking-board.md](../design/tracking-board.md). **The board findings below
+> have not been re-inspected against it.**
+
 Severity: **0** cosmetic · **1** minor · **2** major · **3** catastrophic
 (safety, privacy, or task-blocking).
 

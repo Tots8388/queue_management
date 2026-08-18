@@ -17,7 +17,6 @@ from .models import (
     ServiceCounter,
     StageEvent,
     StaffUser,
-    TokenSequence,
     Visit,
 )
 
@@ -69,7 +68,7 @@ class VisitAdmin(admin.ModelAdmin):
         "presence_status",
         "check_in_time",
     )
-    list_filter = ("token_date", "current_stage", "stage_status", "priority")
+    list_filter = ("token_period", "token_date", "current_stage", "stage_status", "priority")
     search_fields = ("token",)
     date_hierarchy = "check_in_time"
     inlines = [StageEventInline, PriorityChangeInline, PharmacyOutcomeInline]
@@ -102,7 +101,6 @@ class NotificationContactAdmin(admin.ModelAdmin):
     readonly_fields = ("created_at",)
 
 
-admin.site.register(TokenSequence)
 
 admin.site.site_header = "Queue & patient flow — administration"
 admin.site.site_title = "Queue administration"

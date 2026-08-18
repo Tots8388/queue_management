@@ -26,6 +26,8 @@
   "include": [
     "next-env.d.ts",
     "../shared/**/*.json",
+    "../shared/ui/**/*.ts",
+    "../shared/ui/**/*.tsx",
     "**/*.ts",
     "**/*.tsx",
     ".next/types/**/*.ts",

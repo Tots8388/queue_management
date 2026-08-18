@@ -41,6 +41,13 @@ mistake, not from the disk failing — and disk failure is the more likely event
 Copy the backup off the machine periodically (external drive kept in a
 different room). A fire or theft takes the machine and everything on it.
 
+The clinic machine has PostgreSQL installed, so the script calls `pg_dump`
+directly. On a development machine running the database from
+[`deploy/docker-compose.yml`](../../deploy/docker-compose.yml) there is no
+`pg_dump` on `PATH`, and the script falls back to running it inside the
+container. The dump file is byte-for-byte the same either way, so a dump taken
+on one can be restored on the other.
+
 ---
 
 ## Checking backups are working
@@ -72,6 +79,20 @@ dropdb queue_restore_test
 ```
 
 If those counts look like a working day, the backup is real.
+
+With the database in a container, the same drill runs inside it — the dump is
+piped in from the host:
+
+```bash
+docker exec queue-management-pg createdb -U queue_user queue_restore_test
+docker exec -i queue-management-pg pg_restore --clean --if-exists --no-owner \
+    -U queue_user --dbname queue_restore_test < "<backup file>"
+
+docker exec queue-management-pg psql -U queue_user -d queue_restore_test \
+    -c "SELECT COUNT(*) FROM queueapp_visit;"
+
+docker exec queue-management-pg dropdb -U queue_user queue_restore_test
+```
 
 ---
 

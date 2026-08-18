@@ -1,0 +1,18 @@
+/*
+ * Staff app stylesheet.
+ *
+ * The design tokens themselves live in shared/ui/styles/globals.css, so this
+ * app and the patient app cannot drift apart on brand colour, spacing or
+ * contrast — there is one definition of the design system, imported twice.
+ * The role colours each dashboard is identified by (nurse blue, clinician
+ * purple, pharmacy amber) are defined there too.
+ *
+ * `@source` is required, not decorative: Tailwind discovers the classes it
+ * must generate by scanning files, and its automatic detection stops at this
+ * app's own root. Without the line below, every class used only inside
+ * shared/ui would be missing from the stylesheet and those components would
+ * render unstyled.
+ */
+@import "../../../shared/ui/styles/globals.css";
+
+@source "../../../shared/ui";

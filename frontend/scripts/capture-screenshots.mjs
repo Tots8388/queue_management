@@ -6,20 +6,50 @@
  * rather than pulling a second Chromium down — the clinic machine should not
  * need a 150MB download to produce a screenshot.
  *
- *   node scripts/capture-screenshots.mjs
+ *   cd frontend
+ *   DEMO_PASSWORD=… npm run screenshots
  *
- * Expects the stack running (start.bat) with seeded data.
+ * Expects the stack running (start.bat) with the staff accounts seeded. No
+ * patients are seeded anywhere in this project, so the script checks its own
+ * cohort in and walks them along the journey before shooting. Output is written
+ * relative to this file, so it lands in docs/design/screenshots wherever the
+ * command is run from.
  */
 
 import { existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import puppeteer from "puppeteer-core";
 
-const FRONTEND = process.env.FRONTEND_URL ?? "http://localhost:3000";
+// Two applications, two origins. The patient app carries the landing page,
+// token entry, patient status and the waiting-room board; the staff app
+// carries the sign-in and the four dashboards. Sessions live in
+// sessionStorage, which is per-origin, so the staff sign-in below has to be
+// planted on the staff origin — planting it on the patient one would leave the
+// dashboards signed out.
+const PATIENT = process.env.PATIENT_URL ?? "http://localhost:3000";
+const STAFF = process.env.STAFF_URL ?? "http://localhost:3001";
 const API = process.env.API_URL ?? "http://localhost:8000/api";
-const OUT = path.resolve("../docs/design/screenshots");
-const PASSWORD = "prototype-demo-only";
+
+// Resolved against this file, not the shell's working directory. Run from the
+// repo root, `path.resolve("../docs/…")` lands outside the repository entirely
+// and mkdirSync happily creates it — ten figures written somewhere nobody
+// looks, with every step still reporting success.
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const OUT = path.resolve(HERE, "../../docs/design/screenshots");
+
+// The seed accounts' password, which belongs in the environment rather than in
+// a second committed copy that can drift from the seed command's own.
+const PASSWORD = process.env.DEMO_PASSWORD;
+if (!PASSWORD) {
+  console.error(
+    "DEMO_PASSWORD is not set. It is the password printed by\n" +
+      "  python manage.py seed_demo\n" +
+      "Set it in .env or in this shell before running the capture.",
+  );
+  process.exit(1);
+}
 
 const BROWSERS = [
   "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
@@ -43,17 +73,40 @@ if (!executablePath) {
   process.exit(1);
 }
 
-/** Sign in over the API and plant the tokens the app expects in sessionStorage. */
-async function signIn(page, username) {
-  const response = await fetch(`${API}/auth/login/`, {
+/**
+ * One API call that refuses to fail quietly.
+ *
+ * A capture run that swallows a 401 does not produce no figures — it produces
+ * ten plausible-looking figures of error and empty states, each announced with
+ * a tick. Better to stop at the first sign that the stack is not in the state
+ * the figures assume.
+ */
+async function call(pathname, { method = "GET", token, body } = {}) {
+  const headers = {};
+  if (body !== undefined) headers["Content-Type"] = "application/json";
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const response = await fetch(`${API}${pathname}`, { method, headers, body });
+  if (!response.ok) {
+    throw new Error(
+      `${method} ${pathname} → ${response.status}: ${await response.text()}`,
+    );
+  }
+  return response.json();
+}
+
+async function signInAs(username) {
+  return call("/auth/login/", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ username, password: PASSWORD }),
   });
-  if (!response.ok) throw new Error(`sign-in failed for ${username}`);
-  const { access, refresh } = await response.json();
+}
 
-  await page.goto(`${FRONTEND}/login`, { waitUntil: "domcontentloaded" });
+/** Sign in over the API and plant the tokens the app expects in sessionStorage. */
+async function signIn(page, username) {
+  const { access, refresh } = await signInAs(username);
+
+  await page.goto(`${STAFF}/login`, { waitUntil: "domcontentloaded" });
   await page.evaluate(
     (a, r) => {
       sessionStorage.setItem("queue.access", a);
@@ -73,79 +126,129 @@ async function signIn(page, username) {
  * is meant to show.
  */
 async function liveToken() {
-  const login = await fetch(`${API}/auth/login/`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username: "reception1", password: PASSWORD }),
-  }).then((r) => r.json());
+  const { access } = await signInAs("reception1");
 
   for (const stage of ["vitals", "consultation", "registration"]) {
-    const queue = await fetch(`${API}/queue/${stage}/`, {
-      headers: { Authorization: `Bearer ${login.access}` },
-    }).then((r) => r.json());
+    const queue = await call(`/queue/${stage}/`, { token: access });
     const routine = queue.visits?.find((v) => v.priority === "routine");
     if (routine) return routine.token;
   }
 
-  const created = await fetch(`${API}/visits/check-in/`, {
+  const created = await call("/visits/check-in/", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${login.access}`,
-    },
+    token: access,
     body: "{}",
-  }).then((r) => r.json());
+  });
   return created.token;
 }
 
 /**
  * Check a few patients in, so the reception queue is not empty.
  *
- * The seed starts everyone past registration, which leaves reception showing
- * "nobody is waiting" — a true screenshot of an unrepresentative state.
+ * Nothing is seeded into the database, so every figure's content is created
+ * here — through the same endpoints the staff dashboards call.
  */
 async function registerPatients(howMany) {
-  const login = await fetch(`${API}/auth/login/`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username: "reception1", password: PASSWORD }),
-  }).then((r) => r.json());
+  const { access } = await signInAs("reception1");
 
+  const tokens = [];
   for (let index = 0; index < howMany; index += 1) {
-    await fetch(`${API}/visits/check-in/`, {
+    const created = await call("/visits/check-in/", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${login.access}`,
-      },
+      token: access,
       body: "{}",
     });
+    tokens.push(created.token);
+  }
+  return tokens;
+}
+
+// Each stage is completed by the one role that holds the capability for it.
+const STAFF_FOR_STAGE = {
+  registration: "reception1",
+  vitals: "nurse1",
+  consultation: "clinician1",
+  pharmacy: "pharmacy1",
+};
+const JOURNEY = ["registration", "vitals", "consultation", "pharmacy"];
+
+/**
+ * Walk patients along the journey so every dashboard has a queue to show.
+ *
+ * With no seeded history the whole cohort would otherwise sit in registration,
+ * leaving vitals, consultation and pharmacy each photographed as "nobody is
+ * waiting" — a true screenshot of an unrepresentative state.
+ */
+async function advance(tokens, throughStages) {
+  const sessions = {};
+  for (const [stage, username] of Object.entries(STAFF_FOR_STAGE)) {
+    sessions[stage] = (await signInAs(username)).access;
+  }
+
+  for (const stage of JOURNEY.slice(0, throughStages)) {
+    const access = sessions[stage];
+    for (const token of tokens) {
+      // Best-effort: a patient already moved on by an earlier pass, or one the
+      // stage does not accept, must not abort a whole capture run.
+      try {
+        await call(`/visits/${token}/start/`, {
+          method: "POST",
+          token: access,
+          body: "{}",
+        });
+        await call(`/visits/${token}/complete/`, {
+          method: "POST",
+          token: access,
+          body: "{}",
+        });
+      } catch (error) {
+        console.warn(`    (${token} not advanced past ${stage}: ${error.message})`);
+      }
+    }
   }
 }
 
-/** Put a few patients into "called" so the board has something to show. */
-async function callPatients(howMany) {
-  const login = await fetch(`${API}/auth/login/`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username: "nurse1", password: PASSWORD }),
-  }).then((r) => r.json());
-  const auth = { Authorization: `Bearer ${login.access}` };
+/**
+ * Fill every stage: a cohort walked the furthest, then progressively shorter
+ * ones, then a batch left at reception. Completing services also gives the
+ * wait-range calculation the finished timings it needs (FR7) — without them
+ * the patient figure shows "estimate unavailable".
+ */
+async function buildQueue() {
+  for (const stages of [4, 3, 2, 1, 0]) {
+    const tokens = await registerPatients(stages === 0 ? 4 : 3);
+    if (stages) await advance(tokens, stages);
+  }
+}
 
+/**
+ * Call the first patient at each stage forward, one per stage.
+ *
+ * Through ``/start/`` rather than the presence endpoint, because that is the
+ * button a real member of staff presses — and it records which desk or room
+ * they were called to, which is the part of the board a patient acts on. Set
+ * "called" directly and the figure shows highlighted tokens with no room
+ * beside them: true of that database state, and untrue of the clinic.
+ */
+async function callPatients() {
   const called = [];
-  for (const stage of ["vitals", "consultation", "pharmacy"]) {
-    if (called.length >= howMany) break;
-    const queue = await fetch(`${API}/queue/${stage}/`, { headers: auth }).then(
-      (r) => r.json(),
-    );
-    for (const visit of queue.visits ?? []) {
-      if (called.length >= howMany) break;
-      const response = await fetch(`${API}/visits/${visit.token}/presence/`, {
+  for (const [stage, username] of Object.entries(STAFF_FOR_STAGE)) {
+    const { access } = await signInAs(username);
+    const queue = await call(`/queue/${stage}/`, { token: access });
+    const first = (queue.visits ?? [])[0];
+    if (!first) continue;
+
+    // Best-effort per stage: one station having nobody to call must not abort
+    // a whole capture run.
+    try {
+      await call(`/visits/${first.token}/start/`, {
         method: "POST",
-        headers: { ...auth, "Content-Type": "application/json" },
-        body: JSON.stringify({ presence: "called" }),
+        token: access,
+        body: "{}",
       });
-      if (response.ok) called.push(visit.token);
+      called.push(`${first.token} (${stage})`);
+    } catch (error) {
+      console.warn(`    (${first.token} not called at ${stage}: ${error.message})`);
     }
   }
   console.log(`  called ${called.join(", ") || "(nobody — queue empty)"}`);
@@ -161,7 +264,7 @@ async function shoot(page, name, { viewport, url, before, fullPage = true }) {
   console.log(`  ✓ ${name}`);
 }
 
-await registerPatients(4);
+await buildQueue();
 const token = await liveToken();
 console.log(`Using live token ${token}`);
 mkdirSync(OUT, { recursive: true });
@@ -174,11 +277,11 @@ const browser = await puppeteer.launch({
 const page = await browser.newPage();
 
 try {
-  await shoot(page, "01-home.png", { viewport: WIDE, url: `${FRONTEND}/` });
-  await shoot(page, "02-login.png", { viewport: WIDE, url: `${FRONTEND}/login` });
+  await shoot(page, "01-home.png", { viewport: WIDE, url: `${PATIENT}/` });
+  await shoot(page, "02-login.png", { viewport: WIDE, url: `${STAFF}/login` });
   await shoot(page, "02b-login-invalid.png", {
     viewport: WIDE,
-    url: `${FRONTEND}/login`,
+    url: `${STAFF}/login`,
     before: async (p) => {
       await p.type("#username", "nurse1");
       await p.type("#password", "wrong-password");
@@ -188,18 +291,19 @@ try {
   });
   await shoot(page, "03-patient-entry.png", {
     viewport: MOBILE,
-    url: `${FRONTEND}/patient`,
+    url: `${PATIENT}/patient`,
   });
   await shoot(page, "04-patient-status.png", {
     viewport: MOBILE,
-    url: `${FRONTEND}/patient/${token}`,
+    url: `${PATIENT}/patient/${token}`,
   });
-  // The board only lists patients who are actually being called, so call a few
-  // first — an empty board is a true screenshot of an untrue situation.
-  await callPatients(3);
+  // The board lists everyone in the clinic, so the cohort above already fills
+  // it. Calling one patient forward at each station adds the state the board
+  // exists to shout — a highlighted token, with the room to walk to.
+  await callPatients();
   await shoot(page, "05-display-board.png", {
     viewport: TV,
-    url: `${FRONTEND}/display`,
+    url: `${PATIENT}/display`,
     fullPage: false,
   });
 
@@ -212,7 +316,7 @@ try {
     await signIn(page, username);
     await shoot(page, file, {
       viewport: DESKTOP,
-      url: `${FRONTEND}/staff/${route}`,
+      url: `${STAFF}/staff/${route}`,
     });
   }
 
@@ -220,7 +324,7 @@ try {
   await signIn(page, "nurse1");
   await shoot(page, "10-priority-dialog.png", {
     viewport: DESKTOP,
-    url: `${FRONTEND}/staff/vitals`,
+    url: `${STAFF}/staff/vitals`,
     fullPage: false,
     before: async (p) => {
       const opened = await p.evaluate(() => {

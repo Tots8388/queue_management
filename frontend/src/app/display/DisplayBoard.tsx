@@ -1,15 +1,19 @@
 "use client";
 
 /**
- * The waiting-room board (spec FR8).
+ * The clinic tracking board (spec FR8).
  *
- * Neither prototype sheet included this screen, so it is designed from the
- * spec: anonymous token and destination only, read across a room, no
- * interaction.
+ * Not a call-forward list: every patient currently in the building appears
+ * here, grouped under the stage they are at, from check-in until pharmacy is
+ * finished with them. A patient can find their own token and see how far along
+ * they are without asking at a desk.
  *
  * The rule it exists to honour is absolute — no names, no priority categories,
- * no diagnoses, no prescriptions. The server sends a two-field payload, and
- * this component renders those two fields and nothing else.
+ * no diagnoses, no prescriptions. The server sends token, stage and
+ * destination, and this component renders those and nothing else. The columns
+ * are in arrival order rather than service order for the same reason: a list
+ * ordered by who is next would let the room infer who has been given a
+ * clinical priority.
  *
  * Everything scales with the viewport (clamp / vw-relative sizes) so the same
  * page fills a 55" wall screen and still holds together on a laptop.
@@ -17,10 +21,26 @@
 
 import { useEffect, useState } from "react";
 
-import { Crest, HomeLink } from "@/components/ui";
-import { api } from "@/lib/api";
-import type { DisplayState } from "@/lib/types";
-import { useQueueChannel } from "@/lib/useQueueChannel";
+import { Crest, HomeLink } from "@shared/ui/components/ui";
+import { api } from "@shared/ui/lib/api";
+import { contracts } from "@shared/ui/lib/contracts";
+import type { DisplayRow, DisplayState } from "@shared/ui/lib/types";
+import { useQueueChannel } from "@shared/ui/lib/useQueueChannel";
+
+/**
+ * The stages that are places in the clinic. "complete" is not one — a patient
+ * who has finished has left, and the board drops them.
+ */
+const COLUMNS = contracts.stages.filter((stage) => stage.key !== "complete");
+
+/**
+ * How many tokens a column shows before it stops and counts the rest.
+ *
+ * A column that kept growing would shrink its own text until nobody across the
+ * room could read any of it, which fails everybody rather than just the
+ * overflow. Better to stay legible and say plainly how many are not shown.
+ */
+const PER_COLUMN = 8;
 
 export function DisplayBoard() {
   const { data, connection } = useQueueChannel<DisplayState>("/ws/display/");
@@ -62,7 +82,7 @@ export function DisplayBoard() {
               Kabarak University Medical Center
             </h1>
             <p className="text-[clamp(0.9rem,1.3vw,1.4rem)] text-brand-100">
-              Waiting-room display
+              Everyone in the clinic, and where they are
             </p>
           </div>
         </div>
@@ -83,43 +103,29 @@ export function DisplayBoard() {
       </header>
 
       <main id="main" className="flex flex-1 flex-col px-[3vw] pb-[2.5vh] pt-[2vh]">
-        <div className="grid grid-cols-[1fr_1.5fr] gap-4 border-b border-white/25 pb-[1.4vh] text-[clamp(1rem,1.6vw,1.75rem)] font-medium uppercase tracking-[0.12em] text-brand-100">
-          <span>Token</span>
-          <span>Please proceed to</span>
-        </div>
-
-        {/* Announced politely: a screen reader in the waiting area should not
-            interrupt, but the board does update. */}
-        <ul aria-live="polite" className="flex-1">
-          {rows.map((row, index) => (
-            <li
-              key={row.token}
-              className={`grid grid-cols-[1fr_1.5fr] items-center gap-4 border-b border-white/10 py-[1.6vh] ${
-                index === 0 ? "-mx-[1.5vw] rounded-2xl bg-white/[0.06] px-[1.5vw]" : ""
-              }`}
-            >
-              {/* Deliberately huge: this is read from across a waiting room. */}
-              <span className="token-figure text-[clamp(2.5rem,6vw,6.5rem)] font-bold leading-none">
-                {row.token}
-              </span>
-              <span className="flex items-center gap-[1.2vw] text-[clamp(1.6rem,4vw,4.5rem)] font-medium leading-none">
-                <span aria-hidden="true" className="text-brand-100/70">
-                  →
-                </span>
-                {row.destination}
-              </span>
-            </li>
-          ))}
-        </ul>
-
-        {rows.length === 0 && (
+        {rows.length === 0 ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
             <span className="grid size-[clamp(3.5rem,6vw,6rem)] place-items-center rounded-full bg-white/10">
               <Crest className="size-[clamp(2rem,3.5vw,3.5rem)]" />
             </span>
             <p className="text-[clamp(1.4rem,2.4vw,2.5rem)] text-brand-100">
-              No patients are being called at the moment.
+              Nobody is in the clinic at the moment.
             </p>
+          </div>
+        ) : (
+          /* Announced politely: a screen reader in the waiting area should not
+             interrupt, but the board does update. */
+          <div
+            aria-live="polite"
+            className="grid flex-1 auto-rows-fr gap-[1.5vw] sm:grid-cols-2 lg:grid-cols-4"
+          >
+            {COLUMNS.map((column) => (
+              <StageColumn
+                key={column.key}
+                label={column.label}
+                rows={rows.filter((row) => row.stage === column.key)}
+              />
+            ))}
           </div>
         )}
       </main>
@@ -131,7 +137,10 @@ export function DisplayBoard() {
             staff calling tokens.
           </span>
         ) : (
-          <span>Please watch for your token. Staff will also call it out.</span>
+          <span>
+            Find your token to see where you are. A highlighted token is being
+            called now — staff will also call it out.
+          </span>
         )}
 
         {/* Kept small and in the footer: this screen is a wall display, and
@@ -139,5 +148,81 @@ export function DisplayBoard() {
         <HomeLink className="shrink-0 text-base" />
       </footer>
     </div>
+  );
+}
+
+/**
+ * One place in the clinic, and the tokens currently there.
+ *
+ * The heading carries the count even when the list is truncated, so a column
+ * never understates how many people are at a stage — the number is the honest
+ * part, the list is the part that has to fit on a screen.
+ */
+function StageColumn({ label, rows }: { label: string; rows: DisplayRow[] }) {
+  const shown = rows.slice(0, PER_COLUMN);
+  const hidden = rows.length - shown.length;
+
+  return (
+    <section className="flex min-w-0 flex-col rounded-2xl bg-white/[0.06] p-[1.2vw] ring-1 ring-white/10">
+      <h2 className="flex items-baseline justify-between gap-2 border-b border-white/15 pb-[1vh] text-[clamp(0.95rem,1.5vw,1.6rem)] font-medium uppercase tracking-[0.1em] text-brand-100">
+        <span className="truncate">{label}</span>
+        <span
+          className="shrink-0 tabular-nums"
+          aria-label={`${rows.length} ${rows.length === 1 ? "patient" : "patients"} at ${label}`}
+        >
+          {rows.length}
+        </span>
+      </h2>
+
+      {rows.length === 0 ? (
+        <p className="flex flex-1 items-center justify-center text-[clamp(0.9rem,1.2vw,1.25rem)] text-brand-100/60">
+          Nobody here
+        </p>
+      ) : (
+        <ul className="mt-[1vh] flex-1 space-y-[0.8vh]">
+          {shown.map((row) => (
+            <li
+              key={row.token}
+              /* A token that has just been called is lifted out of the column.
+                 It is the only state the board emphasises, and it is why
+                 someone looks up at it in the first place. */
+              className={`rounded-xl px-[0.8vw] py-[0.7vh] ${
+                row.called ? "bg-white text-brand-900" : ""
+              }`}
+            >
+              {/* Never wrapped. The token is the one thing a patient scans the
+                  wall for, and a token broken across two lines is a token they
+                  have to reassemble before they can recognise it. */}
+              <span className="token-figure block whitespace-nowrap text-[clamp(1.5rem,2.8vw,3rem)] font-bold leading-none">
+                {row.token}
+              </span>
+              {/* The desk or room, shown only once it says more than the
+                  column heading already does — a patient waiting for vitals is
+                  just "at vitals", but one called to a specific window needs to
+                  know which.
+
+                  On its own line rather than beside the token: a column is
+                  narrow, and "Consultation Roo…" is worse than no room at all
+                  when there are two consultation rooms to choose between. */}
+              {row.destination !== label && (
+                <span
+                  className={`mt-[0.3vh] block text-[clamp(0.8rem,1.15vw,1.2rem)] font-medium ${
+                    row.called ? "text-brand-700" : "text-brand-100/80"
+                  }`}
+                >
+                  {row.destination}
+                </span>
+              )}
+            </li>
+          ))}
+
+          {hidden > 0 && (
+            <li className="px-[0.8vw] pt-[0.5vh] text-[clamp(0.85rem,1.15vw,1.2rem)] text-brand-100/70">
+              +{hidden} more
+            </li>
+          )}
+        </ul>
+      )}
+    </section>
   );
 }

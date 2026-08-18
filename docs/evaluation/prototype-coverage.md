@@ -20,7 +20,7 @@ the five places the software deliberately departs from it.
 |---|---|---|---|
 | 1 | Registration and token issue | Reception dashboard → *Register patient* | ✅ |
 | 2 | Patient progress | `/patient/<token>` — stage bar, people ahead, wait range | ✅ |
-| 3 | Anonymous waiting-room display | `/display` — token + destination only | ✅ |
+| 3 | Anonymous waiting-room display | `/display` — the tracking board: everyone in the clinic, by stage, token + room only | ✅ |
 | 4 | Vitals completion | Vital signs dashboard → *Complete & send to clinician* | ✅ |
 | 5 | Authorised priority | Priority dialog, clinical roles only, reason required | ✅ |
 | 6 | Consultation transfer | Consultation dashboard → *Complete & send to pharmacy* | ✅ |
@@ -29,11 +29,17 @@ the five places the software deliberately departs from it.
 | 9 | Return after tests | Consultation → *Send for laboratory tests* / *Patient returned* | ✅ |
 | 10 | Medicine-unavailable status | Pharmacy → *not available*, visit stays open | ✅ |
 | 11 | Offline fallback messaging | Connection banner + reception fallback panel + reconciliation | ✅ |
+| 12 | Abandoned-visit closure | Reception dashboard → *Abandoned visits*, after 24h idle | ✅ |
 
 Two things the sheets did not include, added because the spec requires them:
 the **public display screen** (FR8 has no prototype in either sheet) and a
 **wait range that can degrade to unavailable** rather than always showing a
 number.
+
+Row 12 is not in spec §4.9 either. It follows from a build decision the sheets
+predate — a visit now ends when pharmacy is finished rather than at the end of
+the day, which leaves nothing to close a visit the patient walked away from.
+See [Queue policy → Abandoned visits](../../spec.md#queue-policy-from-the-brief).
 
 ---
 
@@ -55,6 +61,12 @@ Open four windows: the waiting-room board (`/display`), a patient view, a staff
 dashboard, and one spare browser for a second role. Sign in with the seeded
 accounts (`reception1`, `nurse1`, `clinician1`, `pharmacy1`, password
 `prototype-demo-only`).
+
+The queue starts empty — no patients are seeded. Before the audience arrives,
+check about a dozen in at reception and walk most of them through the stages, so
+each dashboard has a queue and the wait range has completed services to work
+from. Every one of those visits is then real use of the system, which is the
+point.
 
 ### 1. One token, four stages (2 min) — items 1, 2, 4, 6
 
@@ -79,9 +91,32 @@ is the feature.
 
 ### 3. Privacy in public (1 min) — item 3
 
-Put the board on the big screen. Nothing on it identifies anyone: no name, no
-priority, no clinical detail, by construction rather than by policy. Every
-patient in the room can watch it safely.
+Put the board on the big screen. Four columns, everyone in the building, each
+under the stage they are at — a patient can find their own token and see how
+far along they are without asking at a desk.
+
+Nothing on it identifies anyone: no name, no priority, no clinical detail, by
+construction rather than by policy. Two details worth naming aloud, because
+both are decisions rather than accidents:
+
+- The emergency patient from the previous section is **still in arrival
+  order** on the board. A board sorted by who is next would tell the room who
+  has been given a clinical priority.
+- The tokens are **random**, so the board publishes neither the order people
+  arrived in nor how many the clinic has seen today.
+
+### 3b. The patient who went home (1 min) — item 12
+
+A patient leaves the board only when pharmacy is finished with them, so
+somebody who leaves halfway through would sit there for good. Strand a visit
+(the one-liner in [`../test-accounts.md`](../test-accounts.md) does it), and an
+**Abandoned visits** panel appears on the reception dashboard.
+
+Close it, and say why it works this way: the 24-hour threshold is enforced on
+the server, so the capability is "close what has clearly been abandoned", not
+"remove a patient from the queue" — and the clerk who did it is named in the
+audit log, because if the judgement was wrong, somebody still waiting has just
+been taken off every screen.
 
 ### 4. When things go sideways (3 min) — items 8, 9, 10
 

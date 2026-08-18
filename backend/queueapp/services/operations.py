@@ -19,6 +19,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 
+from django.conf import settings
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.utils import timezone
@@ -242,11 +243,16 @@ def complete_stage(visit: Visit, *, actor, to_stage: str | None = None) -> Visit
 
     visit.current_stage = destination
     visit.presence_status = Visit.Presence.WAITING
+    # A counter belongs to one stage, so it cannot survive a move to another.
+    # Left set, "Vitals Room" would follow the patient to consultation and both
+    # the board and the SMS would send them to a room they have already left —
+    # and it would look authoritative while doing it. Cleared here, the patient
+    # reads "Consultation" until somebody calls them to an actual room.
+    visit.assigned_counter = None
 
     if destination == "complete":
         visit.stage_status = Visit.StageStatus.COMPLETE
         visit.closed_at = timezone.now()
-        visit.assigned_counter = None
     else:
         visit.stage_status = Visit.StageStatus.WAITING
         StageEvent.objects.create(visit=visit, stage=destination)
@@ -270,10 +276,94 @@ def complete_stage(visit: Visit, *, actor, to_stage: str | None = None) -> Visit
 
 
 @transaction.atomic
-def start_serving(visit: Visit, *, actor, counter=None) -> Visit:
-    """A member of staff begins serving this patient at their current stage."""
+def close_abandoned(visit: Visit, *, actor) -> Visit:
+    """
+    Close a visit the patient walked away from (reception only).
+
+    The staleness test is applied **here**, not in the view, and a visit that
+    does not meet it is refused. That is what keeps this from being "reception
+    can remove anyone": the only visits it can touch are ones nothing has
+    happened to for a full day, which no patient still in the building will
+    have.
+
+    The stage is left as it was. Closing says the patient stopped here, not
+    that they finished — and a visit rewritten to "complete" would tell the
+    reports that somebody collected medication they never received.
+    """
+    from . import queue as queue_service
+
     if visit.closed_at:
         raise QueueError(f"Visit {visit.token} is already closed.")
+
+    if not queue_service.is_stale(visit):
+        raise QueueError(
+            f"Visit {visit.token} is still active — something happened to it "
+            f"within the last {settings.STALE_VISIT_HOURS} hours. Only a visit "
+            "nothing has touched since then can be closed as abandoned."
+        )
+
+    stopped_at = visit.current_stage
+    idle_hours = int(
+        (timezone.now() - visit.last_updated).total_seconds() // 3600
+    )
+
+    _close_open_event(visit, getattr(actor, "role", ""))
+    visit.stage_status = Visit.StageStatus.COMPLETE
+    visit.presence_status = Visit.Presence.MISSED_TURN
+    visit.assigned_counter = None
+    visit.closed_at = timezone.now()
+    visit.save()
+
+    record_audit(
+        AuditFact(
+            action="closed_abandoned",
+            actor_role=getattr(actor, "role", ""),
+            actor=actor,
+            visit_token=visit.token,
+            detail=(
+                f"Closed as abandoned at {stopped_at}; "
+                f"no activity for {idle_hours} hours."
+            ),
+        )
+    )
+    # The stage they were stranded in has one fewer person in it, and the board
+    # has to stop showing them.
+    broadcast.queue_changed(token=visit.token, stages=[stopped_at])
+    return visit
+
+
+def _station_of(actor, stage: str):
+    """
+    The counter an actor is working at, if it is one that serves this stage.
+
+    Deliberately silent when it does not match: a clinician calling a patient
+    who is still at vitals must not stamp them "Consultation Room 1" and send
+    them to the wrong door. No room shown is a smaller failure than the wrong
+    room shown, and the board falls back to naming the stage.
+    """
+    counter = getattr(actor, "default_counter", None)
+    if counter is None or not counter.is_active or counter.stage != stage:
+        return None
+    return counter
+
+
+@transaction.atomic
+def start_serving(visit: Visit, *, actor, counter=None) -> Visit:
+    """
+    A member of staff begins serving this patient at their current stage.
+
+    Falls back to the caller's own station when no counter is named. The clinic
+    has two reception desks and two consultation rooms, so "you are being seen
+    at consultation" is not an answer a patient can act on — they need the room
+    number, and the only person who knows it is whoever just pressed the
+    button. Recording it here means the board and the SMS both get it without
+    asking staff to type anything.
+    """
+    if visit.closed_at:
+        raise QueueError(f"Visit {visit.token} is already closed.")
+
+    if counter is None:
+        counter = _station_of(actor, visit.current_stage)
 
     visit.stage_status = Visit.StageStatus.IN_PROGRESS
     visit.presence_status = Visit.Presence.CALLED
@@ -293,9 +383,18 @@ def send_for_tests(visit: Visit, *, actor) -> Visit:
 
     The visit stays at consultation and keeps its history; it simply leaves the
     running order until the patient comes back.
+
+    The consultation event in progress is closed here rather than left hanging.
+    ``return_after_tests`` opens a fresh one, so an event left open would never
+    be closed by anything: it would sit in the clinician's history reading as a
+    consultation still under way hours later, and — being unfinished — would
+    never contribute to the rolling median either. Two honest segments, before
+    and after the tests, describe what happened.
     """
     if visit.current_stage != "consultation":
         raise QueueError("Only a patient at consultation can be sent for tests.")
+
+    _close_open_event(visit, getattr(actor, "role", ""))
 
     visit.awaiting_tests = True
     visit.presence_status = Visit.Presence.TEMPORARILY_AWAY

@@ -228,10 +228,17 @@ else:
 # ---------------------------------------------------------------------------
 CORS_ALLOWED_ORIGINS = env_list("CORS_ALLOWED_ORIGINS")
 if not CORS_ALLOWED_ORIGINS and not IS_PRODUCTION:
-    _frontend_port = env_int("FRONTEND_PORT", 3000)
+    # Two separate frontends, so two origins. The patient app (token entry,
+    # patient status, waiting-room board) and the staff app (sign-in and the
+    # four dashboards) are different applications on different ports, and both
+    # call this API from the browser — an allowlist with only one of them on it
+    # fails whichever app is missing, at its first authenticated request.
+    _patient_port = env_int("PATIENT_PORT", 3000)
+    _staff_port = env_int("STAFF_PORT", 3001)
     CORS_ALLOWED_ORIGINS = [
-        f"http://localhost:{_frontend_port}",
-        f"http://127.0.0.1:{_frontend_port}",
+        origin
+        for port in (_patient_port, _staff_port)
+        for origin in (f"http://localhost:{port}", f"http://127.0.0.1:{port}")
     ]
 CORS_ALLOW_CREDENTIALS = True
 CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS
@@ -239,17 +246,42 @@ CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS
 # ---------------------------------------------------------------------------
 # Visit tokens
 # ---------------------------------------------------------------------------
-# Defaults produce the spec's example format, T-041. The approved prototypes
-# show A017, so the shape is configurable rather than hard-coded — the clinic
-# can change it without a code change. Nothing may assume the token's shape.
+# Tokens are random, not sequential: a counter published on a public board
+# tells the room how many people have been seen and in what order they
+# arrived, which is information about patients that nobody needs and the board
+# has no business disclosing. A random token identifies a visit and says
+# nothing else.
+#
+# The shape is one letter and three digits — K492 — chosen to be said out loud
+# and read across a waiting room. Nothing may assume the token's shape.
 TOKEN = {
-    "PREFIX": os.environ.get("TOKEN_PREFIX", "T"),
-    "SEPARATOR": os.environ.get("TOKEN_SEPARATOR", "-"),
+    # O, I, L and S are left out: spoken or read at a distance they are the
+    # digits 0, 1, 1 and 5, and a token that can be misheard is a patient sent
+    # to the wrong queue.
+    "ALPHABET": os.environ.get("TOKEN_ALPHABET", "ABCDEFGHJKMNPQRTUVWXYZ"),
     "DIGITS": env_int("TOKEN_DIGITS", 3),
-    # Numbering restarts each day, so tokens stay short and readable across a
-    # waiting room instead of growing without bound.
-    "DAILY_RESET": env_bool("TOKEN_DAILY_RESET", True),
+    # How long an issued token stays reserved before it may be handed to
+    # someone else. Patients now leave the board only when pharmacy is done,
+    # so a visit can outlive the day it started; a week gives that room while
+    # still keeping the pool small enough that tokens stay short.
+    "PERIOD_DAYS": env_int("TOKEN_PERIOD_DAYS", 7),
 }
+
+# ---------------------------------------------------------------------------
+# Stale visits
+# ---------------------------------------------------------------------------
+# A visit now ends when pharmacy is finished with the patient, not when the day
+# does. That is what makes the tracking board honest, and it is also what
+# leaves a visit open when somebody goes home without telling anyone: nothing
+# in the clinical flow will ever close it.
+#
+# So reception closes it, by hand, once nothing has happened to the visit for
+# this many hours. Deliberately not a scheduled job — a visit still open is a
+# patient the clinic has lost track of, and somebody noticing that is worth
+# more than a cron entry quietly tidying it away. The threshold is enforced on
+# the server, so the capability is "close what has clearly been abandoned" and
+# never "remove a patient from the queue".
+STALE_VISIT_HOURS = env_int("STALE_VISIT_HOURS", 24)
 
 # ---------------------------------------------------------------------------
 # Wait-range calculation (spec: cautious range, never a countdown)

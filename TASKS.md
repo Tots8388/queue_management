@@ -68,8 +68,8 @@
 ## Phase 5 — Frontends
 
 - [x] Build patient status view: token, current stage, people-ahead count, cautious waiting range, last-update time — plain accessible language (FR7)
-- [x] Build public display board: anonymous token + destination only, e.g. "T-041 → Consultation" (FR8)
-- [x] Build Reception dashboard: register patient, capture check-in, issue token, operate manual fallback
+- [x] Build public display board: anonymous token + destination only, e.g. "K492 → Consultation" (FR8) — since widened from a call-forward list to a clinic tracking board, see [docs/design/tracking-board.md](docs/design/tracking-board.md)
+- [x] Build Reception dashboard: register patient, capture check-in, issue token, operate manual fallback, close visits abandoned for 24 hours
 - [x] Build Nurse/Vitals dashboard: view priority + stage, mark vitals complete, recall/skip, transfer to consultation, assign clinical priority
 - [x] Build Clinician dashboard: priority queue, consultation complete, assign emergency/urgent with logged reason, return-after-tests, transfer to pharmacy
 - [x] Build Pharmacy dashboard: pharmacy queue, mark medicine ready/issued/unavailable, close visit

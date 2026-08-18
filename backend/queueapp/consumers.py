@@ -120,9 +120,10 @@ class PatientStatusConsumer(BaseQueueConsumer):
 
     @database_sync_to_async
     def build_state(self) -> dict | None:
-        visit = Visit.objects.filter(
-            token=self.token, token_date=timezone.localdate()
-        ).first()
+        # The same resolution the REST channel uses, so a patient's live view
+        # and their refreshed page can never disagree about which visit their
+        # token means.
+        visit = queue_service.resolve_token(self.token)
         if visit is None:
             return None
         return {"channel": "patient", **PatientStatusSerializer.from_visit(visit)}

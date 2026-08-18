@@ -6,7 +6,9 @@ Views validate input, check the caller's capability, and hand off to
 lives in one place so no channel can enforce a different version of it.
 """
 
+from django.conf import settings
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.http import Http404
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import status
@@ -33,6 +35,7 @@ from .serializers import (
     PublicDisplayRowSerializer,
     ReorderSerializer,
     StaffVisitSerializer,
+    StaleVisitSerializer,
     TransferSerializer,
 )
 from .services import operations
@@ -40,8 +43,11 @@ from .services import queue as queue_service
 
 
 def _visit(token: str) -> Visit:
-    """Look a visit up by today's token."""
-    return get_object_or_404(Visit, token=token, token_date=timezone.localdate())
+    """Look a visit up by its token."""
+    visit = queue_service.resolve_token(token)
+    if visit is None:
+        raise Http404("No visit with that token.")
+    return visit
 
 
 class QueueActionView(APIView):
@@ -126,6 +132,49 @@ class FallbackReconciliationView(QueueActionView):
         return Response(
             StaffVisitSerializer(visit).data, status=status.HTTP_201_CREATED
         )
+
+
+class StaleVisitsView(QueueActionView):
+    """
+    Visits nothing has happened to for ``STALE_VISIT_HOURS`` (reception).
+
+    The clinic's answer to the one gap the tracking board opens: a patient
+    leaves the board when pharmacy finishes with them, so a patient who goes
+    home halfway never leaves it at all. This is the list reception works
+    through, and the only place a visit stranded in an earlier token period is
+    still visible.
+    """
+
+    required_capability = Capability.CLOSE_ABANDONED_VISIT
+
+    def get(self, request: Request) -> Response:
+        visits = queue_service.stale_visits()
+        return Response(
+            {
+                "stale_after_hours": settings.STALE_VISIT_HOURS,
+                "visits": StaleVisitSerializer(visits, many=True).data,
+            }
+        )
+
+
+class CloseAbandonedVisitView(QueueActionView):
+    """
+    Close one abandoned visit (reception).
+
+    Addressed by **id, not token** — the one endpoint that is. Tokens are
+    unique within a period, and a stale visit is by definition old enough that
+    its token may already have been reissued to somebody now sitting in the
+    waiting room. Token lookup resolves to the newer visit, so closing "by
+    token" here would close the wrong patient, and the older row it was meant
+    to clear would stay exactly where it was.
+    """
+
+    required_capability = Capability.CLOSE_ABANDONED_VISIT
+
+    def post(self, request: Request, visit_id: int) -> Response:
+        visit = get_object_or_404(Visit, pk=visit_id)
+        operations.close_abandoned(visit, actor=request.user)
+        return Response(StaffVisitSerializer(visit).data)
 
 
 class StageQueueView(QueueActionView):

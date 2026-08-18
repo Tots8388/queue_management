@@ -4,13 +4,16 @@ it says it must not.
 """
 
 from concurrent.futures import ThreadPoolExecutor
+from datetime import date, timedelta
 
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import connection, transaction
 from django.test import TestCase, TransactionTestCase, override_settings
 from django.utils import timezone
 
 from .models import (
+    TOKEN_EPOCH,
     AuditLogEntry,
     NotificationContact,
     PharmacyOutcome,
@@ -20,22 +23,44 @@ from .models import (
     StageEvent,
     StaffUser,
     Visit,
-    format_token,
+    generate_token,
+    token_period_start,
 )
 
 
 class TokenTests(TestCase):
-    def test_default_format_matches_the_spec_example(self):
-        self.assertEqual(format_token(41), "T-041")
+    def test_a_token_is_a_letter_followed_by_digits(self):
+        for _ in range(50):
+            self.assertRegex(generate_token(), r"^[A-Z]\d{3}$")
 
-    @override_settings(TOKEN={"PREFIX": "A", "SEPARATOR": "", "DIGITS": 3})
-    def test_format_is_configurable_to_the_prototype_style(self):
-        """The approved prototypes show A017; the format is a setting."""
-        self.assertEqual(format_token(17), "A017")
+    def test_the_alphabet_excludes_letters_that_read_as_digits(self):
+        """
+        A token is read off a wall screen and said out loud at a desk. O/0,
+        I/1, S/5 and L confuse both, so they are not in the pool at all — the
+        cheapest place to fix a misread is before the token exists.
+        """
+        self.assertEqual(set("OILS") & set(settings.TOKEN["ALPHABET"]), set())
 
-    def test_tokens_are_issued_in_sequence(self):
-        tokens = [Visit.check_in().token for _ in range(3)]
-        self.assertEqual(tokens, ["T-001", "T-002", "T-003"])
+    @override_settings(TOKEN={"ALPHABET": "AB", "DIGITS": 2, "PERIOD_DAYS": 7})
+    def test_the_shape_is_configurable(self):
+        self.assertRegex(generate_token(), r"^[AB]\d{2}$")
+
+    def test_tokens_are_not_issued_in_sequence(self):
+        """
+        The board shows everyone in the clinic. Sequential tokens would publish
+        arrival order and running totals to the whole waiting room, so they are
+        drawn at random instead. Two runs of ten cannot both be consecutive by
+        accident often enough to matter.
+        """
+        tokens = [Visit.check_in().token for _ in range(10)]
+
+        numbers = [int(token[1:]) for token in tokens]
+        steps = {b - a for a, b in zip(numbers, numbers[1:])}
+        self.assertNotEqual(steps, {1})
+
+    def test_tokens_issued_together_are_distinct(self):
+        tokens = [Visit.check_in().token for _ in range(30)]
+        self.assertEqual(len(set(tokens)), len(tokens))
 
     def test_a_visit_keeps_one_token_across_every_stage(self):
         """Spec: a single visit identity, not per-stage tickets."""
@@ -48,18 +73,85 @@ class TokenTests(TestCase):
             visit.refresh_from_db()
             self.assertEqual(visit.token, issued)
 
-    def test_the_same_token_cannot_be_issued_twice_in_a_day(self):
-        Visit.check_in()
+    def test_the_same_token_cannot_be_issued_twice_in_a_period(self):
+        taken = Visit.check_in()
         with self.assertRaises(Exception):
             with transaction.atomic():
-                Visit.objects.create(token="T-001", token_date=timezone.localdate())
+                Visit.objects.create(
+                    token=taken.token, token_period=taken.token_period
+                )
+
+    def test_the_same_token_may_be_reused_in_a_later_period(self):
+        """
+        The pool is small enough to exhaust if tokens were retired for good.
+        Reuse is safe because the period is half of what identifies a visit.
+        """
+        taken = Visit.check_in()
+        days = settings.TOKEN["PERIOD_DAYS"]
+
+        later = Visit.objects.create(
+            token=taken.token,
+            token_period=taken.token_period + timedelta(days=days),
+        )
+
+        self.assertEqual(later.token, taken.token)
+
+    def test_check_in_exhausting_the_pool_raises_rather_than_colliding(self):
+        """
+        With a two-token alphabet the pool runs out almost immediately. The
+        wrong failure here would be a second patient handed a live token, so
+        the loop gives up loudly instead.
+        """
+        with override_settings(TOKEN={"ALPHABET": "A", "DIGITS": 0, "PERIOD_DAYS": 7}):
+            Visit.check_in()
+            with self.assertRaises(RuntimeError):
+                Visit.check_in()
+
+
+class TokenPeriodTests(TestCase):
+    def test_a_period_runs_for_the_configured_number_of_days(self):
+        start = token_period_start(date(2026, 8, 17))
+
+        self.assertEqual(token_period_start(start), start)
+        self.assertEqual(token_period_start(start + timedelta(days=6)), start)
+        self.assertEqual(
+            token_period_start(start + timedelta(days=7)), start + timedelta(days=7)
+        )
+
+    def test_periods_are_counted_from_a_fixed_epoch(self):
+        """
+        Not the ISO week: anchoring to a stored epoch means the boundaries in
+        the past stay where they were even if the period length is changed.
+        """
+        for offset in (0, 1, 6, 7, 700):
+            with self.subTest(offset=offset):
+                start = token_period_start(TOKEN_EPOCH + timedelta(days=offset))
+                self.assertEqual((start - TOKEN_EPOCH).days % 7, 0)
+
+    @override_settings(
+        TOKEN={"ALPHABET": "ABCDEFGHJKMNPQRTUVWXYZ", "DIGITS": 3, "PERIOD_DAYS": 1}
+    )
+    def test_a_one_day_period_is_the_old_daily_behaviour(self):
+        today = timezone.localdate()
+        self.assertEqual(token_period_start(today), today)
+
+    def test_check_in_stamps_both_the_day_and_the_period(self):
+        """
+        The two are kept apart: the day is the record of when someone arrived,
+        the period is what their token is unique within.
+        """
+        visit = Visit.check_in()
+
+        self.assertEqual(visit.token_date, timezone.localdate())
+        self.assertEqual(visit.token_period, token_period_start())
 
 
 class ConcurrentCheckInTests(TransactionTestCase):
     """
     Several reception terminals check people in at once. Two patients holding
-    the same token would be a serious operational failure, so allocation takes
-    a row lock rather than reading MAX+1.
+    the same token would be a serious operational failure. Tokens are drawn at
+    random, so the database's unique constraint — not a check-then-insert — is
+    what settles a collision, and the caller simply draws again.
     """
 
     def test_parallel_check_ins_produce_distinct_tokens(self):
@@ -229,10 +321,10 @@ class PharmacyOutcomeTests(TestCase):
 
 
 class AuditLogEntryTests(TestCase):
-    def test_entry_survives_the_daily_purge_of_visits(self):
+    def test_entry_survives_the_purge_of_visits(self):
         """
-        Live tokens are purged at end of day while audit logs are retained far
-        longer, so the log holds the token as a string rather than a foreign key.
+        Live visits are purged well before audit logs are, so the log holds the
+        token as a string rather than a foreign key.
         """
         visit = Visit.check_in()
         entry = AuditLogEntry.objects.create(
@@ -245,7 +337,7 @@ class AuditLogEntryTests(TestCase):
         visit.delete()
         entry.refresh_from_db()
 
-        self.assertEqual(entry.visit_token, "T-001")
+        self.assertEqual(entry.visit_token, visit.token)
 
     def test_entry_survives_the_staff_account_being_removed(self):
         user = StaffUser.objects.create_user(

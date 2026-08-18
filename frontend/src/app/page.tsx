@@ -1,8 +1,8 @@
 import Link from "next/link";
 
 import { BackendStatus } from "@/components/BackendStatus";
-import { Brand } from "@/components/ui";
-import { contracts } from "@/lib/contracts";
+import { Brand } from "@shared/ui/components/ui";
+import { contracts } from "@shared/ui/lib/contracts";
 
 const CHANNELS = [
   {
@@ -17,25 +17,21 @@ const CHANNELS = [
   {
     name: "Waiting-room display",
     path: "/display",
-    description: "Anonymous tokens and destinations only. No names, no details.",
+    description:
+      "Where everyone in the clinic is, by token. No names, no details.",
     theme: "text-brand-600",
     ring: "hover:border-brand-500/40",
     icon: <ScreenIcon />,
   },
-  {
-    name: "Staff sign in",
-    path: "/login",
-    description:
-      "Reception, vital signs, consultation and pharmacy dashboards.",
-    theme: "text-role-nurse",
-    ring: "hover:border-role-nurse/40",
-    icon: <BadgeIcon />,
-  },
 ];
+
+// The staff dashboards are deliberately absent. They are a separate
+// application, served on its own port to staff terminals, so nothing a patient
+// can reach offers a way into them — see docs/operations/lan-deployment.md.
 
 export default function Home() {
   return (
-    <div className="flex min-h-full flex-col bg-app">
+    <div className="flex min-h-dvh flex-col bg-app">
       <header className="bg-brand-gradient text-white shadow-brand">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-6 py-5">
           <Brand subtitle="Queue & patient flow" />
@@ -171,25 +167,3 @@ function ScreenIcon() {
   );
 }
 
-function BadgeIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className="size-6" fill="none">
-      <rect
-        x="3.5"
-        y="4.5"
-        width="17"
-        height="15"
-        rx="2.5"
-        stroke="currentColor"
-        strokeWidth="1.6"
-      />
-      <circle cx="9" cy="10" r="2.2" stroke="currentColor" strokeWidth="1.6" />
-      <path
-        d="M6 16c.6-1.8 2-2.6 3-2.6s2.4.8 3 2.6M14.5 9.5h4M14.5 13h3"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}

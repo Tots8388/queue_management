@@ -84,7 +84,7 @@ Priority renders as text in the row — "Routine" in normal ink, "Urgent" in red
 
 ## Design system extracted from the sheets
 
-Implemented in [`../../frontend/src/app/globals.css`](../../frontend/src/app/globals.css).
+Implemented in [`../../shared/ui/styles/globals.css`](../../shared/ui/styles/globals.css).
 
 | Token | Value | Used by |
 | --- | --- | --- |

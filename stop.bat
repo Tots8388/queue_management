@@ -6,18 +6,46 @@ REM ---------------------------------------------------------------------------
 setlocal
 
 set BACKEND_PORT=8000
-set FRONTEND_PORT=3000
+set PATIENT_PORT=3000
+set STAFF_PORT=3001
+set ROOT=%~dp0
+set COMPOSE_FILE=%ROOT%deploy\docker-compose.yml
+set DB_CONTAINER=queue-management-pg
 set STOPPED=0
 
 call :stop_port %BACKEND_PORT% backend
-call :stop_port %FRONTEND_PORT% frontend
+call :stop_port %PATIENT_PORT% "patient app"
+call :stop_port %STAFF_PORT% "staff app"
+
+call :stop_database
 
 if "%STOPPED%"=="0" (
-    echo Nothing was running on ports %BACKEND_PORT% and %FRONTEND_PORT%.
+    echo Nothing was running on ports %BACKEND_PORT%, %PATIENT_PORT% and %STAFF_PORT%,
+    echo and the database container was not running.
 ) else (
     echo Done.
 )
 endlocal
+exit /b 0
+
+REM The development database container, if this machine runs one. Stopped, not
+REM removed: the data lives in the queue-management-pgdata volume and survives
+REM either way, but stopping keeps the next start fast. Every guard exits
+REM quietly — a machine with no container, or no Docker at all, is not an error.
+:stop_database
+if not exist "%COMPOSE_FILE%" exit /b 0
+where docker >nul 2>&1 || exit /b 0
+docker ps --filter "name=%DB_CONTAINER%" --filter "status=running" --format "{{.Names}}" 2>nul | findstr /c:"%DB_CONTAINER%" >nul || exit /b 0
+echo Stopping database (%DB_CONTAINER%)...
+REM `docker stop`, not `docker compose stop`: Compose would re-read the compose
+REM file and demand the POSTGRES_* values from .env just to shut a container
+REM down. The container name is fixed there, so address it directly.
+docker stop %DB_CONTAINER% >nul 2>&1
+if errorlevel 1 (
+    echo   Warning: could not stop %DB_CONTAINER%.
+) else (
+    set STOPPED=1
+)
 exit /b 0
 
 :stop_port

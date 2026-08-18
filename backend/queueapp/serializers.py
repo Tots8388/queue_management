@@ -126,6 +126,29 @@ class StaffVisitSerializer(serializers.ModelSerializer):
         return int((timezone.now() - visit.check_in_time).total_seconds() // 60)
 
 
+class StaleVisitSerializer(StaffVisitSerializer):
+    """
+    A visit reception is being asked to close as abandoned.
+
+    Adds how long it has sat untouched, because that is the whole basis for
+    the decision — "waiting 19 hours" and "nothing has happened for 19 hours"
+    are different claims, and only the second one justifies closing a visit.
+    Carries the id as well, which is how the close endpoint addresses it: a
+    stale token may already have been reissued to a patient in the room.
+    """
+
+    idle_hours = serializers.SerializerMethodField()
+
+    class Meta(StaffVisitSerializer.Meta):
+        fields = StaffVisitSerializer.Meta.fields + ["idle_hours"]
+        read_only_fields = fields
+
+    def get_idle_hours(self, visit: Visit) -> int:
+        from django.utils import timezone
+
+        return int((timezone.now() - visit.last_updated).total_seconds() // 3600)
+
+
 class PatientStatusSerializer(serializers.Serializer):
     """
     What a patient sees about their own visit (spec FR7).
@@ -171,14 +194,18 @@ class PatientStatusSerializer(serializers.Serializer):
 
 class PublicDisplayRowSerializer(serializers.Serializer):
     """
-    One line on the waiting-room board (spec FR8).
+    One patient on the waiting-room board (spec FR8).
 
-    Two fields, and there is nowhere to add a third: no name, no priority
-    category, no clinical detail may ever appear on a public screen.
+    The board tracks where everyone in the clinic is, so it carries the stage
+    and the destination alongside the token. It carries nothing more: no name,
+    no priority category, no clinical detail may ever appear on a public
+    screen, and no field here could hold one.
     """
 
     token = serializers.CharField()
+    stage = serializers.CharField()
     destination = serializers.CharField()
+    called = serializers.BooleanField()
 
 
 class CheckInSerializer(serializers.Serializer):

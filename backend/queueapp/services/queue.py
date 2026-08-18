@@ -18,11 +18,14 @@ moves only through a manual reorder, which requires a logged reason.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import timedelta
 
+from django.conf import settings
 from django.db.models import Case, IntegerField, QuerySet, Value, When
+from django.utils import timezone
 
 from ..contracts import contracts
-from ..models import Visit
+from ..models import Visit, token_period_start
 
 # Stages a patient actually waits in. "complete" is not a queue.
 ACTIVE_STAGES = [
@@ -54,6 +57,93 @@ def ordered_visits(queryset: QuerySet[Visit] | None = None) -> QuerySet[Visit]:
     )
 
 
+def current_visits() -> QuerySet[Visit]:
+    """
+    The visits belonging to the token period now in progress.
+
+    Every live queue is built on this. Tokens are only unique within a period —
+    the database constraint is ``unique(token_period, token)`` — and a token is
+    how staff actions and the patient's own channel address a visit. A queue
+    reaching back over earlier periods would therefore list two different
+    patients under one token, and the Start button on the older row would act
+    on the current patient.
+
+    It is also what bounds the queues. A patient now leaves the board only when
+    pharmacy is done, so a visit abandoned halfway — someone who went home
+    without telling anyone — has nothing else to clear it. Scoping to the
+    period means such a visit falls out on its own instead of sitting in a
+    dashboard for good.
+
+    Earlier records are untouched and stay available to the admin and the
+    reports; they simply stop appearing in a queue that is being worked now.
+    """
+    return Visit.objects.filter(token_period=token_period_start())
+
+
+def resolve_token(token: str) -> Visit | None:
+    """
+    The visit a patient means when they type their token.
+
+    An **open** visit always wins. Periods exist so tokens can be reused, but a
+    visit that is still going is the one thing that must never be shadowed by
+    that reuse: a patient checked in on the last evening of a period is still
+    in the clinic the next morning, and their slip has to keep working. Only
+    when no open visit holds the token does this fall back to a finished one in
+    the current period, so someone who has collected their medication can still
+    see that they are done.
+    """
+    open_visit = (
+        Visit.objects.filter(token=token, closed_at__isnull=True)
+        .exclude(current_stage="complete")
+        .order_by("-check_in_time")
+        .first()
+    )
+    if open_visit is not None:
+        return open_visit
+
+    return (
+        current_visits()
+        .filter(token=token)
+        .order_by("-check_in_time")
+        .first()
+    )
+
+
+def stale_cutoff():
+    """The moment before which an untouched visit counts as abandoned."""
+    return timezone.now() - timedelta(hours=settings.STALE_VISIT_HOURS)
+
+
+def is_stale(visit: Visit) -> bool:
+    """Has nothing happened to this visit for STALE_VISIT_HOURS?"""
+    if visit.closed_at or visit.current_stage == "complete":
+        return False
+    return visit.last_updated <= stale_cutoff()
+
+
+def stale_visits() -> QuerySet[Visit]:
+    """
+    Visits still open that nothing has touched for STALE_VISIT_HOURS.
+
+    Measured from ``last_updated`` — the time of the last thing that actually
+    happened to the visit — rather than from check-in. A patient who arrived
+    yesterday morning and was seen at vitals last night is mid-journey, not
+    abandoned; one whose record has not moved since they checked in went home
+    without telling anybody. Check-in time cannot tell those apart.
+
+    Deliberately **not** scoped to the current token period. A visit that fell
+    off the board when the period rolled over is exactly the one that most
+    needs closing, and it is the only list in the system that will still show
+    it. Oldest first: reception works the backlog from the far end.
+    """
+    return (
+        Visit.objects.filter(closed_at__isnull=True, last_updated__lte=stale_cutoff())
+        .exclude(current_stage="complete")
+        .select_related("assigned_counter")
+        .order_by("last_updated", "id")
+    )
+
+
 def stage_queue(stage: str, *, include_stepped_away: bool = True) -> QuerySet[Visit]:
     """
     Everyone currently waiting at one stage, in service order.
@@ -62,7 +152,7 @@ def stage_queue(stage: str, *, include_stepped_away: bool = True) -> QuerySet[Vi
     to see them to call them back. Counting who is *ahead* of someone excludes
     them — see ``people_ahead``.
     """
-    queryset = Visit.objects.filter(
+    queryset = current_visits().filter(
         current_stage=stage,
         stage_status__in=[Visit.StageStatus.WAITING, Visit.StageStatus.IN_PROGRESS],
         closed_at__isnull=True,
@@ -80,11 +170,11 @@ def position_in_stage(visit: Visit) -> int | None:
     if visit.current_stage == "complete" or visit.closed_at:
         return None
 
-    tokens = list(
-        stage_queue(visit.current_stage).values_list("token", flat=True)
-    )
+    # Matched on primary key, not token: a token identifies a visit only
+    # within its own period, so the key is what cannot be ambiguous.
+    ids = list(stage_queue(visit.current_stage).values_list("pk", flat=True))
     try:
-        return tokens.index(visit.token) + 1
+        return ids.index(visit.pk) + 1
     except ValueError:
         return None
 
@@ -103,13 +193,11 @@ def people_ahead(visit: Visit) -> int | None:
     # One pass over the full stage queue. A patient who has stepped away keeps
     # their place, so they still get a count — of the people ahead who are
     # actually present.
-    queue = stage_queue(visit.current_stage).values_list(
-        "token", "presence_status"
-    )
+    queue = stage_queue(visit.current_stage).values_list("pk", "presence_status")
 
     ahead = 0
-    for token, presence in queue:
-        if token == visit.token:
+    for pk, presence in queue:
+        if pk == visit.pk:
             return ahead
         if presence not in STEPPED_AWAY:
             ahead += 1
@@ -130,38 +218,62 @@ def next_visit(stage: str) -> Visit | None:
 @dataclass(frozen=True)
 class PublicDisplayRow:
     """
-    One line on the waiting-room board.
+    One patient on the waiting-room board.
 
-    Spec FR8 allows exactly two things in public: the anonymous token and where
-    it is going. This dataclass has exactly two fields so that a name, priority
-    or clinical detail cannot be added to a public payload by accident — there
-    is nowhere to put it.
+    The board tracks everyone currently in the clinic, so this carries where
+    the patient is as well as the token. It carries nothing else. Priority in
+    particular is absent by design: it is a clinical judgement, and a public
+    screen is the last place it belongs. The dataclass is frozen and has these
+    four fields so that a name, a priority or a clinical detail cannot be added
+    to a public payload by accident — there is nowhere to put it.
+
+    ``called`` is not clinical. It says only that staff have just asked for
+    this token, which is the one thing the board exists to shout.
     """
 
     token: str
+    stage: str
     destination: str
+    called: bool
 
 
-def public_display_rows(limit: int = 20) -> list[PublicDisplayRow]:
+# Far above any real clinic's concurrent load. It exists so a runaway or
+# mis-seeded database cannot push an unbounded payload to a wall screen.
+DISPLAY_LIMIT = 200
+
+
+def public_display_rows(limit: int = DISPLAY_LIMIT) -> list[PublicDisplayRow]:
     """
-    The public board: anonymous tokens and destinations only.
+    The public board: every patient currently in the clinic, and where they are.
 
-    Shows patients who are being called or served, since the board's job is to
-    tell people where to go — not to publish the whole queue.
+    This is a tracking board, not a call-forward list. A patient appears from
+    the moment they are checked in and stays until pharmacy is finished with
+    them, so anyone in the building can find their own token and see how far
+    along they are without asking at a desk.
+
+    **Ordered by arrival, deliberately not by service order.** The queues
+    themselves run emergencies first, but publishing that order would let the
+    room work out who has been given a clinical priority by watching a token
+    move up the list. Arrival order discloses nothing and is the order a
+    patient can make sense of anyway. The board is a picture of where people
+    are; it has never been a promise of who is next.
     """
-    visits = ordered_visits(
-        Visit.objects.filter(
-            closed_at__isnull=True,
-            presence_status__in=[
-                Visit.Presence.CALLED,
-                Visit.Presence.RECALLED,
-                Visit.Presence.RESUMED,
-            ],
-        ).exclude(current_stage="complete")
-    ).select_related("assigned_counter")[:limit]
+    visits = (
+        current_visits()
+        .filter(closed_at__isnull=True)
+        .exclude(current_stage="complete")
+        .select_related("assigned_counter")
+        .order_by("check_in_time", "id")[:limit]
+    )
 
+    called_states = {Visit.Presence.CALLED, Visit.Presence.RECALLED}
     return [
-        PublicDisplayRow(token=visit.token, destination=visit.public_destination)
+        PublicDisplayRow(
+            token=visit.token,
+            stage=visit.current_stage,
+            destination=visit.public_destination,
+            called=visit.presence_status in called_states,
+        )
         for visit in visits
     ]
 

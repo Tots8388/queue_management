@@ -15,7 +15,7 @@ import "./globals.css";
  * behaviour the on-premise decision was made for in the first place.
  */
 const inter = localFont({
-  src: "./fonts/Inter-Variable.woff2",
+  src: "../../../shared/ui/fonts/Inter-Variable.woff2",
   variable: "--font-inter",
   display: "swap",
   weight: "100 900",

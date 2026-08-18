@@ -305,7 +305,7 @@ class PublicBoardIntegrationTests(JourneyTestCase):
             name="Consultation Room 2", stage="consultation"
         )
 
-    def test_the_board_shows_a_called_patient_as_token_and_destination_only(self):
+    def test_the_board_shows_a_called_patient_as_a_token_and_a_place_only(self):
         token = self._check_in()
         self._as(self.clerk)
         self._post("queueapp:complete-stage", token)
@@ -326,12 +326,44 @@ class PublicBoardIntegrationTests(JourneyTestCase):
 
         rows = self._board()
         self.assertEqual(len(rows), 1)
-        self.assertEqual(set(rows[0]), {"token", "destination"})
+        self.assertEqual(set(rows[0]), {"token", "stage", "destination", "called"})
         self.assertEqual(rows[0]["destination"], "Consultation Room 2")
+        self.assertIs(rows[0]["called"], True)
         self.assertNotIn("urgent", str(rows).lower())
 
-    def test_patients_merely_waiting_are_not_published(self):
-        self._check_in()
+    def test_a_patient_merely_waiting_is_published_at_the_stage_they_wait_at(self):
+        """
+        The board tracks the clinic rather than calling people forward, so a
+        patient appears from check-in and stays until pharmacy is finished.
+        """
+        token = self._check_in()
+
+        rows = self._board()
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["token"], token)
+        self.assertEqual(rows[0]["stage"], "registration")
+        self.assertIs(rows[0]["called"], False)
+
+    def test_a_patient_leaves_the_board_when_pharmacy_finishes_with_them(self):
+        token = self._check_in()
+        for actor in (self.clerk, self.nurse, self.clinician):
+            self._as(actor)
+            self._post("queueapp:complete-stage", token)
+
+        # Still on the board while pharmacy has them. `_board()` drops the
+        # authentication, so the pharmacist has to be put back on the client.
+        self.assertEqual(len(self._board()), 1)
+
+        # Issuing the medication is what finishes the visit — there is no
+        # separate "complete" step after it.
+        self._as(self.pharmacist)
+        self._post(
+            "queueapp:pharmacy-outcome",
+            token,
+            {"state": PharmacyOutcome.State.ISSUED},
+        )
+
         self.assertEqual(self._board(), [])
 
 

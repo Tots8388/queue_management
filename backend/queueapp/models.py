@@ -13,10 +13,13 @@ Vocabulary — roles, stages, statuses, priorities — comes from
 cannot drift apart.
 """
 
+import secrets
+from datetime import date, timedelta
+
 from django.conf import settings
 from django.contrib.auth.models import AbstractUser
 from django.core.exceptions import ValidationError
-from django.db import models, transaction
+from django.db import IntegrityError, models, transaction
 from django.utils import timezone
 
 from . import contracts
@@ -119,48 +122,44 @@ class ServiceCounter(models.Model):
 # ---------------------------------------------------------------------------
 
 
-class TokenSequence(models.Model):
+# A fixed Monday. Arbitrary, and it must never move: it is what every stored
+# token_period was computed against.
+TOKEN_EPOCH = date(2024, 1, 1)
+
+
+def token_period_start(on_date=None):
     """
-    Per-day token counter.
+    The first day of the period a token issued on ``on_date`` belongs to.
 
-    Exists so two patients can never be issued the same token. Allocation takes
-    a row lock (see ``allocate``); doing this in application code with a
-    ``MAX(token) + 1`` query would race under exactly the conditions the clinic
-    has — several reception terminals checking people in at once.
+    Tokens are reserved for a period rather than a day, and the period is what
+    a token is unique within. Periods are counted from a fixed epoch rather
+    than from the ISO week, so changing ``PERIOD_DAYS`` does not silently move
+    every boundary in the past.
     """
-
-    date = models.DateField(unique=True)
-    last_number = models.PositiveIntegerField(default=0)
-
-    class Meta:
-        verbose_name = "token sequence"
-        verbose_name_plural = "token sequences"
-
-    def __str__(self) -> str:
-        return f"{self.date}: {self.last_number} issued"
-
-    @classmethod
-    def allocate(cls, for_date=None) -> tuple["TokenSequence", int]:
-        """Reserve the next number for a date. Must run inside a transaction."""
-        for_date = for_date or timezone.localdate()
-        sequence, _ = cls.objects.select_for_update().get_or_create(date=for_date)
-        sequence.last_number += 1
-        sequence.save(update_fields=["last_number"])
-        return sequence, sequence.last_number
+    on_date = on_date or timezone.localdate()
+    days = settings.TOKEN["PERIOD_DAYS"]
+    elapsed = (on_date - TOKEN_EPOCH).days
+    return TOKEN_EPOCH + timedelta(days=(elapsed // days) * days)
 
 
-def format_token(number: int) -> str:
+def generate_token() -> str:
     """
-    Render a token number using the configured format.
+    A random token: one letter, then digits — ``K492``.
 
-    Defaults give the spec's ``T-041``; the approved prototypes use ``A017``.
-    Nothing outside this function may assume the token's shape.
+    Random rather than sequential on purpose. The waiting-room board shows
+    every patient in the clinic, and a sequential token would publish the order
+    people arrived in and how many have been through, neither of which is the
+    board's business. ``secrets`` rather than ``random`` because this is the
+    only thing standing between a stranger and a patient's queue position.
+
+    Uniqueness is not this function's job — it can and will return a token
+    already in use. ``Visit.check_in`` retries against the database constraint,
+    which is the only check that cannot race.
     """
     config = settings.TOKEN
-    return (
-        f"{config['PREFIX']}{config['SEPARATOR']}"
-        f"{number:0{config['DIGITS']}d}"
-    )
+    letter = secrets.choice(config["ALPHABET"])
+    number = secrets.randbelow(10 ** config["DIGITS"])
+    return f"{letter}{number:0{config['DIGITS']}d}"
 
 
 # ---------------------------------------------------------------------------
@@ -195,10 +194,15 @@ class Visit(models.Model):
         MISSED_TURN = "missed_turn", "Missed turn"
         RESUMED = "resumed", "Resumed"
 
-    # The anonymous, patient-facing identifier. Unique within its day; tokens
-    # are reused across days by design, so the pair is what must be unique.
+    # The anonymous, patient-facing identifier. Unique within its period, not
+    # for all time: tokens are deliberately reused once a period has passed, so
+    # the pair is what must be unique.
     token = models.CharField(max_length=16, db_index=True)
+    # The day this token was issued — the record of when, and never a lookup
+    # key. `token_period` is the key, and the two are not the same thing: a
+    # visit that runs past midnight keeps the period it was issued in.
     token_date = models.DateField(default=timezone.localdate, db_index=True)
+    token_period = models.DateField(default=token_period_start, db_index=True)
 
     check_in_time = models.DateTimeField(
         default=timezone.now,
@@ -254,7 +258,7 @@ class Visit(models.Model):
     class Meta:
         constraints = [
             models.UniqueConstraint(
-                fields=["token_date", "token"], name="unique_token_per_day"
+                fields=["token_period", "token"], name="unique_token_per_period"
             ),
         ]
         indexes = [
@@ -276,24 +280,47 @@ class Visit(models.Model):
     def __str__(self) -> str:
         return f"{self.token} ({self.get_current_stage_display()})"
 
+    # Enough attempts that exhausting them means the period's pool is genuinely
+    # full, not that two terminals collided. With 22,000 tokens and a clinic
+    # holding a few hundred at once, a single collision is already unlikely.
+    TOKEN_ATTEMPTS = 12
+
     @classmethod
-    @transaction.atomic
     def check_in(cls, **fields) -> "Visit":
         """
         Issue a token and start a visit (spec FR1).
 
-        Wrapped in a transaction with the sequence row lock so concurrent
-        reception terminals cannot produce the same token.
+        Tokens are random, so two reception terminals can draw the same one at
+        the same moment. The database's unique constraint is what settles that
+        — not a check-then-insert, which is exactly the race the clinic's
+        several terminals would lose. Each attempt gets its own transaction so
+        a collision does not poison the caller's.
         """
         today = timezone.localdate()
-        _, number = TokenSequence.allocate(today)
-        visit = cls.objects.create(
-            token=format_token(number), token_date=today, **fields
+        period = token_period_start(today)
+
+        for _ in range(cls.TOKEN_ATTEMPTS):
+            try:
+                with transaction.atomic():
+                    visit = cls.objects.create(
+                        token=generate_token(),
+                        token_date=today,
+                        token_period=period,
+                        **fields,
+                    )
+            except IntegrityError:
+                continue
+
+            if visit.queue_order_time != visit.check_in_time:
+                visit.queue_order_time = visit.check_in_time
+                visit.save(update_fields=["queue_order_time"])
+            return visit
+
+        raise RuntimeError(
+            "Could not issue a unique token after "
+            f"{cls.TOKEN_ATTEMPTS} attempts. The token pool for this period is "
+            "effectively full — widen TOKEN_DIGITS or shorten TOKEN_PERIOD_DAYS."
         )
-        if visit.queue_order_time != visit.check_in_time:
-            visit.queue_order_time = visit.check_in_time
-            visit.save(update_fields=["queue_order_time"])
-        return visit
 
     @property
     def is_complete(self) -> bool:

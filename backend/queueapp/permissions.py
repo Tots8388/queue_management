@@ -31,6 +31,11 @@ class Capability:
     # Reception
     REGISTER_PATIENT = "register_patient"
     OPERATE_FALLBACK = "operate_fallback"
+    # Close a visit nothing has happened to for STALE_VISIT_HOURS. Reception's,
+    # because reception is the desk that knows who walked back out. Not a
+    # clinical decision and not a way to clear a live queue: the server refuses
+    # any visit that is not already stale.
+    CLOSE_ABANDONED_VISIT = "close_abandoned_visit"
 
     # Stage completions (spec FR10)
     COMPLETE_VITALS = "complete_vitals"
@@ -63,6 +68,7 @@ STATION_CAPABILITIES: dict[str, frozenset[str]] = {
         {
             Capability.REGISTER_PATIENT,
             Capability.OPERATE_FALLBACK,
+            Capability.CLOSE_ABANDONED_VISIT,
             Capability.VIEW_STAGE_QUEUE,
             Capability.CALL_PATIENT,
             Capability.SET_PRESENCE,

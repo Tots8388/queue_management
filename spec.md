@@ -27,7 +27,7 @@ Derived from the brief's context-of-use table and use-case model, which separate
 **Primary users — patients (students and university staff).** Seek care, including first-time and repeat visitors, people under stress, users with disabilities, and users without smartphones. They can: present identification, confirm details, receive a token, view their own token / current stage / people-ahead / waiting range / last update, and receive notifications. Patients do not see other patients' identities or any medical detail.
 
 **Operational users — clinic staff.**
-- *Reception / records personnel:* register a patient, capture check-in time, issue a token, operate the manual fallback and later reconciliation.
+- *Reception / records personnel:* register a patient, capture check-in time, issue a token, operate the manual fallback and later reconciliation, and close visits abandoned for 24 hours (see *Queue policy → Abandoned visits*).
 - *Nurse / vital-signs (triage) staff:* view priority and current stage, mark vitals complete, recall/skip, transfer the token to consultation; may assign clinical priority (authorised clinical role).
 - *Doctor / clinical officer:* view priority queue, conduct consultation, assign emergency/urgent priority with a logged reason, return a patient after lab tests, transfer to pharmacy.
 - *Pharmacy personnel:* view the pharmacy queue, mark medicine ready / issued / unavailable, close the visit.
@@ -52,6 +52,7 @@ Derived from the brief's context-of-use table and use-case model, which separate
 - **FR6** Track the visit through registration, vital signs, consultation, pharmacy and completion.
 - **FR7** Show patients their token, current stage, people ahead, waiting range and last update.
 - **FR8** Display anonymous tokens and destinations publicly without names, diagnoses or prescriptions.
+  > **Widened in build (v1).** The brief's requirement is a floor, not a ceiling: the public screen shows anonymous tokens and destinations, and the build shows *every* patient currently in the clinic under the stage they are at, not only those being called forward. The prohibitions are unchanged and absolute — no names, no priority categories, no diagnoses, no prescriptions. Rationale and the privacy analysis are in [`docs/design/tracking-board.md`](docs/design/tracking-board.md).
 - **FR9** Support call, recall, temporarily-away, missed-turn and resumed statuses.
 - **FR10** Allow staff to mark vital signs complete, consultation complete, medicine ready, medicine issued or unavailable.
 - **FR11** Provide screen, printed-token and optional SMS/phone channels.
@@ -69,11 +70,29 @@ Three priority levels. The digital interface supports but never makes the clinic
 | Urgent | Next appropriate clinical slot | Authorised clinical staff | "Urgent cases may be served before routine cases." |
 | Routine | Order by recorded check-in time within the stage | System order; staff changes require a logged reason | Token, stage, people ahead, waiting range |
 
+#### Abandoned visits (build decision, not from the brief)
+
+A visit ends when pharmacy is finished with the patient, not when the day ends. That is what lets the tracking board be honest about who is in the building, and it is also what leaves a visit open when somebody goes home without telling anyone — nothing in the clinical flow will ever close it.
+
+| Rule | Value |
+|---|---|
+| A visit is **stale** when | nothing has happened to it for **24 hours** (`STALE_VISIT_HOURS`) |
+| Measured from | `last_updated` — the last thing that actually happened to the visit, not check-in time. A patient seen at vitals last night is mid-journey; one whose record has not moved since check-in went home. |
+| Who closes it | **Reception.** It is the desk that knows who walked back out. |
+| How | By hand, from a list on the reception dashboard — deliberately not a scheduled job. A visit left open is a patient the clinic has lost track of, and somebody noticing that is worth more than a cron entry quietly tidying it away. |
+| Guard | The 24-hour threshold is enforced **on the server**. The capability is "close what has clearly been abandoned", never "remove a patient from the queue". |
+| Recorded as | An **accountability action** in the audit log, naming the individual clerk — if the judgement was wrong, somebody who was still waiting has been removed from every queue. |
+| Effect | The visit is closed at the stage it stopped at. It is *not* rewritten to "complete": that would tell the reports somebody collected medication they never received. |
+
+Closing a stale visit is an operational action on the queue. It is **not** data retention — the visit record and its audit trail are retained on their own schedules (see *Decisions & constraints*).
+
 ### Main flows
 
 **Patient happy path.** Present student/staff card at reception → details confirmed, check-in time recorded, anonymous token issued (screen + optional printed token) → wait for vitals (status: *waiting for vitals*) → vitals taken, staff marks *vitals complete* → wait for clinician (*waiting for clinician*) → consultation, clinician marks *consultation complete* → pharmacy (*medicine ready* when prepared) → medicine issued → visit complete. Throughout, the patient can view token, current stage, people ahead, cautious waiting range and last-update time; optional SMS/phone alerts on stage change.
 
-**Public waiting-room display.** Shows anonymous tokens and destination (e.g. "T-041 → Consultation") only. Never shows names, priority category, diagnoses or prescriptions.
+**Public waiting-room display (the tracking board).** One column per place in the clinic — Reception, Vital signs, Consultation, Pharmacy — each listing the anonymous tokens currently there, with the desk or room beside a token that has just been called (e.g. "K492 → Consultation Room 1"). A patient appears from check-in and leaves only when pharmacy is finished with them, so anyone in the building can find their own token and see how far along they are without asking at a desk. Never shows names, priority category, diagnoses or prescriptions.
+
+Columns are ordered by **arrival, not service order**. The queues themselves run emergencies first; publishing that order would let the room infer which patients have been given a clinical priority, which is the priority category disclosed by another route.
 
 **Emergency/urgent override.** An authorised clinical user marks a token emergency or urgent → the case moves immediately to the appropriate clinical service ahead of the routine queue → system records role, timestamp and non-sensitive reason to the audit log → public display still shows only anonymous tokens (urgency category is not exposed publicly).
 
@@ -112,7 +131,7 @@ Two low-fidelity alternatives (patient status view + role-based staff dashboard)
 A lightweight application service layer holds one shared queue state consumed by multiple channels:
 
 - **Patient channel** — personal status view (token, stage, people ahead, waiting range, last update) + optional SMS/phone alerts.
-- **Public display channel** — anonymous token + destination only.
+- **Public display channel** — the tracking board: for every patient in the clinic, an anonymous token, the stage they are at, the desk or room if one has been named, and whether they are being called. Nothing else, and no field in the payload that could carry anything else.
 - **Staff dashboards** — role-based views for reception, nurse/triage, clinician and pharmacy, each exposing only the actions and information that role needs.
 - **Application service layer** — enforces routine ordering, the priority policy, role-based access, stage transitions and audit logging; single source of truth for queue state.
 - **Data store** — visits, stages, priority/reason records, audit log.
@@ -121,7 +140,8 @@ A lightweight application service layer holds one shared queue state consumed by
 
 ### Data entities (derived from FR1–FR14 and the policy/HTA)
 
-- **Visit** — key fields: `token` (anonymous, human-readable e.g. T-041), `check_in_time`, `current_stage` (registration | vitals | consultation | pharmacy | complete), `stage_status` (waiting | in-progress | complete for the stage; plus waiting-for-vitals / vitals-complete / waiting-for-clinician / consultation-complete / medicine-ready etc.), `priority` (emergency | urgent | routine), `presence_status` (called | recalled | temporarily-away | missed-turn | resumed), `notification_preference` (screen | printed | SMS/phone). No names, diagnoses, symptoms or prescriptions stored in the queue system (privacy requirement).
+- **Visit** — key fields: `token` (anonymous, human-readable e.g. K492), `token_period` (the window the token is reserved for; the token is unique within it, not for all time), `check_in_time`, `last_updated`, `closed_at`, `current_stage` (registration | vitals | consultation | pharmacy | complete), `stage_status` (waiting | in-progress | complete for the stage; plus waiting-for-vitals / vitals-complete / waiting-for-clinician / consultation-complete / medicine-ready etc.), `priority` (emergency | urgent | routine), `presence_status` (called | recalled | temporarily-away | missed-turn | resumed), `notification_preference` (screen | printed | SMS/phone). No names, diagnoses, symptoms or prescriptions stored in the queue system (privacy requirement).
+  > **Token generation (build decision).** Tokens are drawn at **random** — one letter then three digits, from an alphabet excluding O, I, L and S — rather than issued in sequence, and are unique within a **token period** (one week by default) rather than within a day. Both follow from the tracking board: a sequential token published next to every other token in the building would disclose arrival order and the clinic's running total, and a visit that ends at pharmacy rather than at midnight cannot have a token scoped to the day. See [`docs/design/tracking-board.md`](docs/design/tracking-board.md).
   > **Decision (proposed default — confirm before build):** Keep the queue token and the medical record **decoupled**. The queue stores an internal `visit_id`; the public/patient-facing token is anonymous. The queue database holds **no** clinical or medical-record data and does not replace the medical record. Authorised staff at a station can map token → patient via a **station-side lookup**, kept outside the queue DB. *This linkage model governs how patient identity is (not) held, so it requires institutional (Medical Center / University governance) sign-off before build.*
 - **Stage / StageEvent** — `visit_token`, `stage`, `entered_at`, `completed_at`, `completed_by_role`. Supports FR6 tracking and FR13 return-after-tests (prior stage history preserved).
 - **PriorityChange** — `visit_token`, `new_priority`, `changed_by_role`, `timestamp`, `non_sensitive_reason/category`. Restricted to authorised clinical roles (FR3, FR5).
@@ -154,7 +174,8 @@ Rule for the build: all API keys, tokens, database URLs and SMS credentials are 
 ## Decisions & constraints
 
 **Key design decisions (from the brief).**
-- One anonymous token persists across all four stages (a single visit identity, not per-stage tickets).
+- One anonymous token persists across all four stages (a single visit identity, not per-stage tickets). *Build detail: the token is random rather than sequential and reserved for a week rather than a day — see* Data entities → Visit.
+- A visit ends when pharmacy is finished with the patient, not at the end of the day. *Build consequence: one abandoned halfway is closed by reception after 24 hours of inactivity — see* Queue policy → Abandoned visits.
 - Routine fairness = serve by recorded check-in time *within the correct stage*; clinical urgency can override time order, but only via an authorised, logged clinical decision.
 - The system communicates and records priority; it never computes clinical urgency and never delays emergency care.
 - Public information is anonymous and minimal; sensitive/priority information is restricted to the relevant staff role.
@@ -173,7 +194,7 @@ Rule for the build: all API keys, tokens, database URLs and SMS credentials are 
 - A live pilot would require institutional approval, a defined data controller, secure authentication, audit trail, retention rules and a documented incident-response process — none of which are the prototype's job to finalise.
   > **Decision (proposed default — confirm before build):** Pre-pilot governance defaults, **all requiring Medical Center / University governance approval** before any real-data pilot:
   > - **Data controller:** Kabarak University Medical Center.
-  > - **Retention:** live queue tokens purged at end of day (or within 24–48h); audit logs retained ~12 months; aggregate/de-identified analytics may be kept longer.
+  > - **Retention:** live queue tokens purged at end of day (or within 24–48h); audit logs retained ~12 months; aggregate/de-identified analytics may be kept longer. *Note: this is separate from closing an abandoned visit after 24 hours, which is a queue operation and deletes nothing. A token is also now reserved for a week rather than a day, so "purged at end of day" needs restating against the token period before it can be signed off.*
   > - **Incident response:** a named system owner, a documented breach-notification step, and a defined rollback to the manual offline fallback.
   >
   > These are proposed starting points, not settled policy; each touches data-protection and clinical governance and **must be reviewed and signed off by Medical Center / University governance** before real patient data is handled.
@@ -188,7 +209,7 @@ Rule for the build: all API keys, tokens, database URLs and SMS credentials are 
 4. **Build the application service layer.** Single authoritative queue state; endpoints for check-in/token issue (FR1), routine ordering within a stage (FR2), stage transitions (FR6, FR10, FR13), priority changes restricted to clinical roles (FR3, FR4, FR5), presence statuses (FR9), and audit logging (FR14). Enforce role-based access.
 5. **Implement the priority policy** exactly as the three-tier table specifies, with logged reasons for routine reordering and immediate routing for emergencies. Never block emergency actions on system state.
 6. **Build the patient status view** (FR7): token, current stage, people ahead, cautious waiting range, last update — plain, accessible language.
-7. **Build the public display** (FR8): anonymous token + destination only; no names, categories or medical detail.
+7. **Build the public display** (FR8): the tracking board — every patient in the clinic, in a column for the stage they are at, with the room beside a token that has been called. Arrival order, never service order. No names, categories or medical detail.
 8. **Build role-based staff dashboards** (reception, nurse/triage, clinician, pharmacy) with minimal-step actions per role; priority tags visible on staff screens only.
 9. **Add notifications** (FR11): screen and printed-token first; wire the optional SMS/phone module behind env-based credentials once the provider is confirmed.
 10. **Implement exceptional paths** (HTA): emergency interruption, temporarily-away/missed-turn/recall recovery, return-after-tests with preserved history, medicine-unavailable, and the manual fallback + reconciliation (FR12).

@@ -21,6 +21,18 @@ urlpatterns = [
         queue_views.FallbackReconciliationView.as_view(),
         name="reconcile-fallback",
     ),
+    # Abandoned visits. Listed and closed by id rather than token, because a
+    # stale token may already have been reissued — see CloseAbandonedVisitView.
+    path(
+        "visits/stale/",
+        queue_views.StaleVisitsView.as_view(),
+        name="stale-visits",
+    ),
+    path(
+        "visits/stale/<int:visit_id>/close/",
+        queue_views.CloseAbandonedVisitView.as_view(),
+        name="close-abandoned",
+    ),
     # Staff queue
     path(
         "queue/<str:stage>/",

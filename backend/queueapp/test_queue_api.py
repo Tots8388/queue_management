@@ -2,11 +2,19 @@
 Phase 3 tests: the queue endpoints, and who may reach them.
 """
 
+from django.conf import settings
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
-from .models import PharmacyOutcome, Role, ServiceCounter, StaffUser, Visit
+from .models import (
+    AuditLogEntry,
+    PharmacyOutcome,
+    Role,
+    ServiceCounter,
+    StaffUser,
+    Visit,
+)
 from .services import operations
 
 
@@ -25,7 +33,7 @@ class CheckInEndpointTests(APITestCase):
         response = self.client.post(self.url, {})
 
         self.assertEqual(response.status_code, 201)
-        self.assertEqual(response.data["token"], "T-001")
+        self.assertRegex(response.data["token"], r"^[A-Z]\d{3}$")
         self.assertEqual(response.data["current_stage"], "registration")
 
     def test_other_roles_cannot_check_a_patient_in(self):
@@ -43,6 +51,195 @@ class CheckInEndpointTests(APITestCase):
             self.url, {"notification_preference": "screen", "phone_number": "+254700000111"}
         )
         self.assertEqual(response.status_code, 400)
+
+
+def make_stale(visit, *, hours=None):
+    """
+    Age a visit past the staleness threshold.
+
+    Writes ``last_updated`` with a queryset update rather than ``save()``,
+    because the field is ``auto_now`` — saving it would stamp it with now and
+    quietly undo the very thing the test is arranging.
+    """
+    hours = hours if hours is not None else settings.STALE_VISIT_HOURS + 1
+    when = timezone.now() - timezone.timedelta(hours=hours)
+    Visit.objects.filter(pk=visit.pk).update(last_updated=when)
+    visit.refresh_from_db()
+    return visit
+
+
+class StaleVisitEndpointTests(APITestCase):
+    """
+    Reception closes visits nobody ever finished — the one gap the tracking
+    board opens, since a patient now leaves it only when pharmacy is done.
+    """
+
+    def setUp(self):
+        self.clerk = staff(Role.REGISTRATION_CLERK)
+        self.list_url = reverse("queueapp:stale-visits")
+
+    def _close_url(self, visit):
+        return reverse("queueapp:close-abandoned", args=[visit.id])
+
+    def test_a_visit_untouched_for_a_day_is_listed(self):
+        stale = make_stale(Visit.check_in())
+
+        self.client.force_authenticate(self.clerk)
+        response = self.client.get(self.list_url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["stale_after_hours"], 24)
+        self.assertEqual(
+            [v["token"] for v in response.data["visits"]], [stale.token]
+        )
+        self.assertGreaterEqual(response.data["visits"][0]["idle_hours"], 24)
+
+    def test_an_active_visit_is_not_listed(self):
+        Visit.check_in()
+
+        self.client.force_authenticate(self.clerk)
+        response = self.client.get(self.list_url)
+
+        self.assertEqual(response.data["visits"], [])
+
+    def test_reception_can_close_one(self):
+        stale = make_stale(Visit.check_in())
+
+        self.client.force_authenticate(self.clerk)
+        response = self.client.post(self._close_url(stale))
+
+        self.assertEqual(response.status_code, 200)
+        stale.refresh_from_db()
+        self.assertIsNotNone(stale.closed_at)
+        self.assertEqual(self.client.get(self.list_url).data["visits"], [])
+
+    def test_the_stage_they_stopped_at_is_preserved(self):
+        """
+        Not rewritten to "complete": that would tell the reports somebody
+        collected medication they never received.
+        """
+        stale = Visit.check_in()
+        operations.complete_stage(stale, actor=self.clerk)
+        make_stale(stale)
+
+        self.client.force_authenticate(self.clerk)
+        self.client.post(self._close_url(stale))
+
+        stale.refresh_from_db()
+        self.assertEqual(stale.current_stage, "vitals")
+
+    def test_an_active_visit_cannot_be_closed(self):
+        """
+        The threshold is the whole safeguard. Without it this capability reads
+        "reception may remove any patient from the queue".
+        """
+        active = Visit.check_in()
+
+        self.client.force_authenticate(self.clerk)
+        response = self.client.post(self._close_url(active))
+
+        self.assertEqual(response.status_code, 400)
+        active.refresh_from_db()
+        self.assertIsNone(active.closed_at)
+
+    def test_a_visit_just_short_of_the_threshold_cannot_be_closed(self):
+        recent = make_stale(Visit.check_in(), hours=23)
+
+        self.client.force_authenticate(self.clerk)
+
+        self.assertEqual(self.client.post(self._close_url(recent)).status_code, 400)
+        self.assertEqual(self.client.get(self.list_url).data["visits"], [])
+
+    def test_closing_twice_is_refused(self):
+        stale = make_stale(Visit.check_in())
+
+        self.client.force_authenticate(self.clerk)
+        self.client.post(self._close_url(stale))
+
+        self.assertEqual(self.client.post(self._close_url(stale)).status_code, 400)
+
+    def test_only_reception_may_see_or_close_them(self):
+        stale = make_stale(Visit.check_in())
+
+        for role in [Role.NURSE_VITALS, Role.CLINICIAN, Role.PHARMACIST]:
+            with self.subTest(role=role):
+                self.client.force_authenticate(staff(role, f"stale_{role}"))
+                self.assertEqual(self.client.get(self.list_url).status_code, 403)
+                self.assertEqual(
+                    self.client.post(self._close_url(stale)).status_code, 403
+                )
+
+    def test_anonymous_callers_are_refused(self):
+        stale = make_stale(Visit.check_in())
+
+        self.assertEqual(self.client.get(self.list_url).status_code, 401)
+        self.assertEqual(self.client.post(self._close_url(stale)).status_code, 401)
+
+    def test_the_clerk_who_closed_it_is_named_in_the_audit_trail(self):
+        """
+        An accountability action, not routine work: if the judgement was wrong,
+        somebody who was still waiting has been erased from every queue.
+        """
+        stale = make_stale(Visit.check_in())
+
+        self.client.force_authenticate(self.clerk)
+        self.client.post(self._close_url(stale))
+
+        entry = AuditLogEntry.objects.get(action="closed_abandoned")
+        self.assertEqual(entry.actor_staff_user, self.clerk)
+        self.assertEqual(entry.visit_token, stale.token)
+        self.assertIn("registration", entry.non_sensitive_detail)
+
+    def test_a_visit_stranded_in_an_earlier_period_is_still_listed(self):
+        """
+        It is the visit that most needs closing — it has already fallen off the
+        board and out of every stage queue, so this list is the only place it
+        can still be seen.
+        """
+        stale = make_stale(Visit.check_in())
+        Visit.objects.filter(pk=stale.pk).update(
+            token_period=stale.token_period - timezone.timedelta(days=7)
+        )
+
+        self.client.force_authenticate(self.clerk)
+        response = self.client.get(self.list_url)
+
+        self.assertEqual(
+            [v["token"] for v in response.data["visits"]], [stale.token]
+        )
+
+    def test_closing_addresses_the_visit_by_id_not_by_a_reusable_token(self):
+        """
+        The collision the id exists for: a stale visit's token reissued to
+        somebody now sitting in the waiting room. Closing the old row must not
+        touch the new patient — and token lookup would resolve to the new one.
+        """
+        stale = make_stale(Visit.check_in())
+        Visit.objects.filter(pk=stale.pk).update(
+            token_period=stale.token_period - timezone.timedelta(days=7)
+        )
+        stale.refresh_from_db()
+        live = Visit.objects.create(token=stale.token, current_stage="vitals")
+
+        self.client.force_authenticate(self.clerk)
+        self.client.post(self._close_url(stale))
+
+        stale.refresh_from_db()
+        live.refresh_from_db()
+        self.assertIsNotNone(stale.closed_at)
+        self.assertIsNone(live.closed_at)
+
+    def test_a_closed_abandoned_visit_leaves_the_public_board(self):
+        stale = Visit.check_in()
+        operations.complete_stage(stale, actor=self.clerk)
+        make_stale(stale)
+
+        self.client.force_authenticate(self.clerk)
+        self.client.post(self._close_url(stale))
+
+        self.client.force_authenticate(None)
+        rows = self.client.get(reverse("queueapp:public-display")).data["rows"]
+        self.assertNotIn(stale.token, [row["token"] for row in rows])
 
 
 class StageQueueEndpointTests(APITestCase):
@@ -216,7 +413,7 @@ class PatientStatusEndpointTests(APITestCase):
 
 
 class PublicDisplayEndpointTests(APITestCase):
-    """Spec FR8 — anonymous token and destination only."""
+    """Spec FR8 — the tracking board: where everyone is, and nothing else."""
 
     def setUp(self):
         self.nurse = staff(Role.NURSE_VITALS)
@@ -241,12 +438,14 @@ class PublicDisplayEndpointTests(APITestCase):
     def test_the_board_is_readable_without_an_account(self):
         self.assertEqual(self.client.get(self.url).status_code, 200)
 
-    def test_a_row_carries_exactly_a_token_and_a_destination(self):
+    def test_a_row_carries_only_where_the_patient_is(self):
         row = self.client.get(self.url).data["rows"][0]
 
-        self.assertEqual(set(row), {"token", "destination"})
+        self.assertEqual(set(row), {"token", "stage", "destination", "called"})
         self.assertEqual(row["token"], self.visit.token)
+        self.assertEqual(row["stage"], "consultation")
         self.assertEqual(row["destination"], "Consultation Room 2")
+        self.assertIs(row["called"], True)
 
     def test_the_board_discloses_no_priority_or_clinical_detail(self):
         body = str(self.client.get(self.url).data).lower()
@@ -255,18 +454,105 @@ class PublicDisplayEndpointTests(APITestCase):
             with self.subTest(term=forbidden):
                 self.assertNotIn(forbidden, body)
 
+    def test_the_board_carries_everyone_still_in_the_clinic(self):
+        """
+        Not a call-forward list. A patient at any stage is somewhere in the
+        building and belongs on the board, so they can find their own token
+        without asking at a desk.
+        """
+        others = {
+            stage: operations.check_in(actor=staff(Role.REGISTRATION_CLERK, f"r_{stage}"))
+            for stage in ["registration", "vitals", "pharmacy"]
+        }
+        for stage, visit in others.items():
+            visit.current_stage = stage
+            visit.save()
+
+        rows = self.client.get(self.url).data["rows"]
+
+        self.assertEqual(
+            {row["token"] for row in rows},
+            {self.visit.token} | {visit.token for visit in others.values()},
+        )
+        self.assertEqual(
+            {row["stage"] for row in rows},
+            {"registration", "vitals", "consultation", "pharmacy"},
+        )
+
+    def test_a_patient_leaves_the_board_only_once_pharmacy_is_done(self):
+        self.visit.current_stage = "complete"
+        self.visit.save()
+
+        rows = self.client.get(self.url).data["rows"]
+
+        self.assertEqual(rows, [])
+
+    def test_the_board_is_in_arrival_order_not_service_order(self):
+        """
+        The queues themselves run emergencies first. Publishing that order
+        would let the room work out who has been given a clinical priority, so
+        the board sorts by arrival instead — self.visit is an emergency and is
+        still listed first because it arrived first.
+        """
+        later = operations.check_in(actor=staff(Role.REGISTRATION_CLERK, "r_later"))
+
+        tokens = [row["token"] for row in self.client.get(self.url).data["rows"]]
+
+        self.assertEqual(tokens, [self.visit.token, later.token])
+
 
 class VisitLookupTests(APITestCase):
-    def test_yesterdays_token_is_not_reachable_today(self):
+    def test_a_token_from_a_past_period_is_not_reachable(self):
         """
-        Tokens restart daily, so a lookup must be scoped to today or it would
-        eventually return the wrong person's visit.
+        Tokens are reused once a period has passed, so a lookup that found any
+        visit ever holding a token would eventually return the wrong person's.
         """
         stale = Visit.check_in()
-        stale.token_date = timezone.localdate() - timezone.timedelta(days=1)
+        stale.token_period -= timezone.timedelta(days=365)
+        stale.token_date = stale.token_period
+        # Closed, because an open visit is deliberately reachable however old
+        # it is — see the test below.
+        stale.closed_at = timezone.now()
+        stale.current_stage = "complete"
         stale.save()
 
         response = self.client.get(
             reverse("queueapp:patient-status", args=[stale.token])
         )
         self.assertEqual(response.status_code, 404)
+
+    def test_an_open_visit_is_reachable_even_across_a_period_boundary(self):
+        """
+        A visit no longer ends when the day does — it ends when pharmacy is
+        finished. Somebody still in the clinic when the period rolls over must
+        not lose their own status page.
+        """
+        visit = Visit.check_in()
+        visit.token_period -= timezone.timedelta(days=7)
+        visit.save()
+
+        response = self.client.get(
+            reverse("queueapp:patient-status", args=[visit.token])
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["token"], visit.token)
+
+    def test_a_reused_token_resolves_to_the_visit_still_open(self):
+        """
+        The collision that matters: the same token issued again in a later
+        period while an old closed visit still holds it. The live one wins.
+        """
+        old = Visit.check_in()
+        old.token_period -= timezone.timedelta(days=7)
+        old.closed_at = timezone.now()
+        old.current_stage = "complete"
+        old.save()
+
+        current = Visit.objects.create(token=old.token, current_stage="vitals")
+
+        response = self.client.get(
+            reverse("queueapp:patient-status", args=[old.token])
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["current_stage"], "vitals")
+        self.assertEqual(response.data["token"], current.token)

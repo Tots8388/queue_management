@@ -1,0 +1,31 @@
+{
+  "name": "queue-management",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Digital Queue & Patient-Flow Management System — Kabarak University Medical Center",
+  "//": [
+    "This file exists to make the two frontends one npm workspace.",
+    "",
+    "The patient app and the staff app are separate applications on separate",
+    "ports, but they compile the same components out of shared/ui. A file in",
+    "shared/ui imports react and next like any other, and Node resolves those",
+    "by walking up from the file itself — so without a node_modules above",
+    "shared/, those imports resolve from neither app and the shared code fails",
+    "to build in both. Declaring the apps as workspaces hoists their",
+    "dependencies to this directory, which is what puts react and next on that",
+    "path.",
+    "",
+    "Install once from here (npm install); it covers both apps."
+  ],
+  "workspaces": [
+    "frontend",
+    "staff-frontend"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace frontend",
+    "dev:staff": "npm run dev --workspace staff-frontend",
+    "build": "npm run build --workspace frontend && npm run build --workspace staff-frontend",
+    "lint": "npm run lint --workspace frontend && npm run lint --workspace staff-frontend",
+    "typecheck": "npm run typecheck --workspace frontend && npm run typecheck --workspace staff-frontend"
+  }
+}

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import { apiUrl } from "@/lib/config";
+import { apiUrl } from "@shared/ui/lib/config";
 
 type Status = "checking" | "online" | "offline";
 

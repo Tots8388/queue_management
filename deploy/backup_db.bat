@@ -13,6 +13,7 @@ setlocal enabledelayedexpansion
 set ROOT=%~dp0..
 set ENV_FILE=%ROOT%\.env
 set KEEP_DAYS=30
+set DB_CONTAINER=queue-management-pg
 
 if not exist "%ENV_FILE%" (
     echo [ERROR] %ENV_FILE% not found. Cannot back up without DATABASE_URL.
@@ -44,8 +45,23 @@ for /f %%t in ('powershell -NoProfile -Command "Get-Date -Format yyyyMMdd-HHmm"'
 set TARGET=%BACKUP_DIR%\queue-%STAMP%.dump
 
 echo Backing up to %TARGET% ...
-pg_dump --format=custom --no-owner --dbname="%DATABASE_URL%" --file="%TARGET%"
 
+REM The clinic server has PostgreSQL installed, so pg_dump is on PATH and is
+REM used directly. A development machine may instead run the database in the
+REM container from docker-compose.yml, where pg_dump lives inside the container
+REM and writes the dump out over stdout. Either way the file is identical.
+where pg_dump >nul 2>&1 || goto :dump_in_container
+pg_dump --format=custom --no-owner --dbname="%DATABASE_URL%" --file="%TARGET%"
+goto :after_dump
+
+:dump_in_container
+where docker >nul 2>&1 || (
+    echo [ERROR] Neither pg_dump nor docker is available. NO BACKUP WAS TAKEN.
+    exit /b 1
+)
+docker exec %DB_CONTAINER% pg_dump --format=custom --no-owner --dbname="%DATABASE_URL%" > "%TARGET%"
+
+:after_dump
 if errorlevel 1 (
     echo [ERROR] pg_dump failed. NO BACKUP WAS TAKEN TONIGHT.
     REM Remove any part-written file: a truncated dump that looks like a

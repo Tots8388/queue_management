@@ -15,6 +15,16 @@ chosen because failure in them is costly rather than annoying.
 > their own design. It predicts where users will struggle; it does not
 > substitute for watching them.
 
+> **Walked against the build of 31 July 2026.** Kept as written, because an
+> evaluation rewritten to match a later build no longer records when it
+> happened. Two details have since changed and are noted inline: tokens are now
+> random (`K492`, not `T-041`) and scoped to a week rather than a day, and the
+> waiting-room screen is now a tracking board showing everyone in the clinic
+> rather than a list of patients being called. See
+> [tracking-board.md](../design/tracking-board.md). **Task A has not been
+> re-walked against the new board** — the board steps below describe a screen
+> that no longer exists in that form.
+
 ---
 
 ## Task A — A first-time patient checks their place in the queue

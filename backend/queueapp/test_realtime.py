@@ -112,7 +112,9 @@ class PublicDisplayChannelTests(TransactionTestCase):
         await communicator.connect()
         message = await communicator.receive_json_from()
 
-        self.assertEqual(set(message["rows"][0]), {"token", "destination"})
+        self.assertEqual(
+            set(message["rows"][0]), {"token", "stage", "destination", "called"}
+        )
         body = str(message).lower()
         for term in ["emergency", "urgent", "priority", "reason"]:
             with self.subTest(term=term):

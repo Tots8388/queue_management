@@ -33,7 +33,10 @@ any point.
 
 ## Setup
 
-1. `start.bat`, then `python manage.py seed_demo --reset` for a populated queue.
+1. `start.bat`, then `python manage.py seed_demo --reset` for the staff accounts
+   and an empty queue. No patients are seeded, so check about a dozen in at
+   reception and advance most of them before the session — a participant should
+   meet a queue that is already busy.
 2. Patient tasks on a phone; staff tasks on a desktop at the relevant dashboard.
 3. Waiting-room board visible on a second screen for tasks 3 and 8.
 4. Two facilitators if possible: one runs the session, one records. One
@@ -55,8 +58,10 @@ any point.
 ### Patient tasks
 
 **T1 — Find your place in the queue.**
-*You have been given this slip with token T-041. Find out how far along you are.*
+*You have been given this slip with token K492. Find out how far along you are.*
 Completion: reads out their stage and how many are ahead.
+Substitute the token actually issued in the session — tokens are random, so
+there is no fixed one to print in advance.
 
 **T2 — Find out how long you might wait.**
 *Roughly how long do you think you will be waiting?*
@@ -64,8 +69,14 @@ Completion: reports a range, or says the system cannot tell them yet.
 Also record: does an "unavailable" reading make them think it is broken?
 
 **T3 — Read the waiting-room board.**
-*You hear a number called. Using the screen on the wall, where should T-041 go?*
-Completion: names the destination. Record how far away they stood.
+*Using the screen on the wall, find K492 and say where that patient is now.*
+Completion: names the stage, and the room if one is shown. Record how far away
+they stood.
+Also record: do they understand that every token on the board is someone
+currently in the clinic, rather than a list of people being called? The board
+was widened to a tracking board after the first build (see
+[tracking-board.md](../design/tracking-board.md)) and whether that reads
+correctly to a patient has not been tested.
 
 **T4 — You need to step away.**
 *You need the toilet and are worried about losing your place. What would you do?*

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { Crest, HomeLink } from "@/components/ui";
+import { Crest, HomeLink } from "@shared/ui/components/ui";
 
 import { TokenEntryForm } from "./TokenEntryForm";
 
@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 
 export default function PatientEntryPage() {
   return (
-    <div className="flex min-h-full flex-col bg-brand-gradient">
+    <div className="flex min-h-dvh flex-col bg-brand-gradient">
       <div className="mx-auto flex w-full max-w-md px-4 pt-4">
         <HomeLink />
       </div>

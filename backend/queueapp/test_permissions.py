@@ -27,6 +27,10 @@ EXPECTED_CAPABILITIES = {
     Role.REGISTRATION_CLERK: {
         Capability.REGISTER_PATIENT,
         Capability.OPERATE_FALLBACK,
+        # Reception's, and nobody else's: it is the desk that knows who walked
+        # back out. Bounded by the 24-hour staleness test in the service layer,
+        # so it cannot reach a patient still in the building.
+        Capability.CLOSE_ABANDONED_VISIT,
         Capability.VIEW_STAGE_QUEUE,
         Capability.CALL_PATIENT,
         Capability.SET_PRESENCE,

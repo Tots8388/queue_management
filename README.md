@@ -22,11 +22,12 @@ Kabarak University Medical Center — outpatient queue and patient-flow prototyp
 
 | Area | Behaviour |
 | --- | --- |
-| Token | One anonymous, human-readable token (e.g. `T-041`) per visit, persisting across all four stages. |
+| Token | One anonymous token (e.g. `K492`) per visit, persisting across all four stages. Drawn at random, and unique within a token period (a week by default) rather than within a day. |
 | Fairness | Routine patients are served in recorded check-in order **within each stage**. |
 | Clinical priority | Only authorised clinical roles (Nurse/Vitals, Clinician) may set emergency/urgent, and every change is logged with role, timestamp and a non-sensitive reason. The system never computes clinical urgency and never delays emergency care. |
 | Patient view | Token, current stage, people ahead, a **cautious waiting range** (never a countdown), and last-update time. |
-| Public display | Anonymous token + destination only — no names, no priority category, no medical detail. |
+| Public display | A tracking board: every patient in the clinic, in a column for the stage they are at, from check-in until pharmacy is finished with them. Anonymous token + destination only — no names, no priority category, no medical detail. |
+| Abandoned visits | A visit ends at pharmacy, not at midnight, so one the patient walked away from is closed by **reception** after 24 hours of no activity. The threshold is enforced server-side and the clerk who closed it is named in the audit trail. |
 | Audit | Identifiable audit trail for accountability actions; de-identified aggregate analytics for reporting. |
 | Resilience | Documented manual (paper/verbal) fallback with later reconciliation; core queue runs on the LAN with no cloud/internet dependency. |
 
@@ -48,11 +49,18 @@ tools/      Deterministic helper scripts (e.g. the governance gate checker)
 
 ## Getting started
 
-Prerequisites: Python 3.12+, Node.js 20+, and PostgreSQL (optional for the
-prototype — see below).
+Prerequisites: Python 3.12+, Node.js 20+, and PostgreSQL — either installed
+locally or run from [`deploy/docker-compose.yml`](./deploy/docker-compose.yml).
 
 ```bash
 cp .env.example .env      # then fill in local values; never commit .env
+```
+
+`DATABASE_URL` must be set. Without it the backend downgrades to the SQLite
+prototype file, and `start.bat` refuses to run. If you have no local PostgreSQL:
+
+```bash
+docker compose --env-file .env -f deploy/docker-compose.yml up -d
 ```
 
 Then run both services:
@@ -61,11 +69,24 @@ Then run both services:
 start.bat
 ```
 
-`stop.bat` shuts them down and is safe to run when nothing is up. Ports are
-pinned at the top of each script: backend `8000`, frontend `3000`.
+`start.bat` brings the database up, waits for it, migrates and starts every
+service. `stop.bat` shuts everything down and is safe to run when nothing is
+up. Ports are pinned at the top of each script: backend `8000`, patient app
+`3000`, staff app `3001`.
+
+The two frontends are deliberately separate applications. Patients and the
+waiting-room screen are given the patient app (`frontend/`, port 3000), which
+carries the token entry, the patient's own status view and the board; staff
+terminals are given the staff app (`staff-frontend/`, port 3001), which carries
+the sign-in and the four dashboards. Nothing served on the patient port
+resolves a staff route, so a patient is never one URL away from a dashboard.
+Both compile the same design system out of `shared/ui/`, and they are npm
+workspaces of this directory — one `npm install` here covers both.
 
 Setup details, including the PostgreSQL vs SQLite decision, are in
-[`docs/development.md`](./docs/development.md).
+[`docs/development.md`](./docs/development.md). Sign-in details for the
+fictional prototype accounts are in
+[`docs/test-accounts.md`](./docs/test-accounts.md).
 
 ## Running it in the clinic
 

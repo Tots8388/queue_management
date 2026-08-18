@@ -23,11 +23,11 @@ import {
   Skeleton,
   StatusPill,
   TokenFigure,
-} from "@/components/ui";
-import { api } from "@/lib/api";
-import { contracts, presenceLabel } from "@/lib/contracts";
-import type { PatientStatus } from "@/lib/types";
-import { useQueueChannel } from "@/lib/useQueueChannel";
+} from "@shared/ui/components/ui";
+import { api } from "@shared/ui/lib/api";
+import { contracts, presenceLabel } from "@shared/ui/lib/contracts";
+import type { PatientStatus } from "@shared/ui/lib/types";
+import { useQueueChannel } from "@shared/ui/lib/useQueueChannel";
 
 /** The four service stages a patient passes through, in order. */
 const JOURNEY = contracts.stages.filter((stage) => stage.order <= 4);
@@ -173,7 +173,7 @@ export function PatientStatusView({ token }: { token: string }) {
 
   if (notFound && !status) {
     return (
-      <div className="flex min-h-full flex-col bg-app">
+      <div className="flex min-h-dvh flex-col bg-app">
         <PatientHeader />
         <main id="main" className="mx-auto w-full max-w-md flex-1 px-6 py-10">
           <div className="rounded-2xl border border-line bg-surface p-6 shadow-sm">
@@ -186,9 +186,9 @@ export function PatientStatusView({ token }: { token: string }) {
               We could not find that token
             </h1>
             <p className="mt-2 text-ink-muted">
-              Tokens are issued fresh each day, so a token from a previous visit
-              will not work. Please check the slip you were given today, or ask
-              at the reception desk.
+              A token belongs to the visit it was issued for, so one from an
+              earlier visit will not work. Please check the slip you were given
+              at reception, or ask at the desk.
             </p>
             <div className="mt-6">
               <Link
@@ -206,7 +206,7 @@ export function PatientStatusView({ token }: { token: string }) {
   }
 
   return (
-    <div className="flex min-h-full flex-col bg-app">
+    <div className="flex min-h-dvh flex-col bg-app">
       <PatientHeader />
       <div className="mx-auto w-full max-w-md px-4">
         <div className="mt-4">

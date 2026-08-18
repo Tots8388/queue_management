@@ -7,8 +7,10 @@ Source of truth for behaviour is [`../spec.md`](../spec.md).
 
 - Python 3.12 or newer
 - Node.js 20 or newer
-- PostgreSQL 14+ (recommended; see [Database](#database) for the prototype
-  fallback)
+- PostgreSQL 14+, either installed locally or run from
+  [`../deploy/docker-compose.yml`](../deploy/docker-compose.yml) — see
+  [Database](#database). The SQLite fallback exists but is prototype
+  scaffolding, not a supported way to run the system.
 
 ## First-time setup
 
@@ -35,12 +37,24 @@ python manage.py migrate
 python manage.py runserver 0.0.0.0:8000
 ```
 
-### Frontend
+### Frontends
+
+There are two: the **patient app** (`frontend/`, port 3000) with the landing
+page, token entry, patient status and the waiting-room board, and the **staff
+app** (`staff-frontend/`, port 3001) with the sign-in and the four dashboards.
+Patients are only ever given the 3000 address, and nothing served there links
+to or resolves a staff route.
+
+They are npm workspaces of the repo root, so one install at the root covers
+both. That is also what lets the components in `shared/ui/` — used by both
+apps — resolve `react` and `next`: hoisting puts them on a path above the
+shared directory.
 
 ```bash
-cd frontend
-npm install
-npm run dev
+npm install          # from the repo root, once, for both apps
+
+cd frontend && npm run dev -- --port 3000        # patients
+cd staff-frontend && npm run dev -- --port 3001  # staff
 ```
 
 Or run both at once from the repo root with `start.bat`, and shut them down with
@@ -56,16 +70,47 @@ records, and the spec fixes PostgreSQL as the decision.
 Set `DATABASE_URL` in `.env`:
 
 ```text
-DATABASE_URL=postgres://queue_user:PASSWORD@localhost:5432/queue_management
+DATABASE_URL=postgres://queue_user:PASSWORD@127.0.0.1:5432/queue_management
 ```
 
-Create the database once:
+There are two ways to have a database behind that URL. Pick one.
+
+#### Option A — the development container (no local install)
+
+[`deploy/docker-compose.yml`](../deploy/docker-compose.yml) runs PostgreSQL 17
+with a persistent named volume. Set `POSTGRES_DB`, `POSTGRES_USER`,
+`POSTGRES_PASSWORD` and `POSTGRES_PORT` in `.env` to match `DATABASE_URL`, then:
+
+```bash
+docker compose --env-file .env -f deploy/docker-compose.yml up -d
+```
+
+`--env-file .env` is required — Compose would otherwise look for `deploy/.env`.
+The port is published on `127.0.0.1` only; staff terminals reach the API, never
+the database. `start.bat` brings this container up and waits for its healthcheck
+before migrating, so it is not something to remember separately.
+
+#### Option B — PostgreSQL installed natively
+
+What the clinic server runs (see
+[`operations/lan-deployment.md`](./operations/lan-deployment.md)). Create the
+database once:
 
 ```bash
 createdb queue_management
 createuser queue_user --pwprompt
 psql -c "GRANT ALL PRIVILEGES ON DATABASE queue_management TO queue_user;"
 ```
+
+Leave the `POSTGRES_*` variables unset in that case — `start.bat` reads
+`POSTGRES_PASSWORD` to tell whether the container is this machine's database,
+and will not start one on a machine that already serves PostgreSQL itself.
+
+Either way, apply migrations with `python manage.py migrate`, then create the
+fictional staff accounts and service counters with `python manage.py seed_demo`.
+The accounts it creates are listed in [`test-accounts.md`](./test-accounts.md).
+It seeds **no patients** — the queue starts empty and fills up only with visits
+checked in through reception, so nothing a dashboard shows is fabricated.
 
 ### SQLite fallback — local prototype only
 
@@ -84,7 +129,24 @@ pilot or for any real-data use, because:
 
 The backend logs a warning on startup whenever it is running on the fallback, so
 this can never be true silently. Setting `DJANGO_ENV=production` with no
-`DATABASE_URL` is a hard startup error rather than a silent downgrade.
+`DATABASE_URL` is a hard startup error rather than a silent downgrade, and
+`start.bat` refuses to start at all when `DATABASE_URL` is unset.
+
+To move an existing SQLite prototype database onto PostgreSQL, dump it with the
+variable forced empty and load it back with it set:
+
+```bash
+cd backend
+DATABASE_URL= python manage.py dumpdata \
+  --exclude contenttypes --exclude auth.Permission --exclude sessions \
+  --exclude admin.logentry --exclude token_blacklist \
+  --indent 2 --output ../.tmp/sqlite_dump.json
+python manage.py migrate
+python manage.py loaddata ../.tmp/sqlite_dump.json
+```
+
+The exclusions are the tables `migrate` repopulates itself, plus JWT and session
+state that should not survive a database move.
 
 ## Real-time (Django Channels)
 

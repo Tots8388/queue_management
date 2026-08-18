@@ -1,0 +1,48 @@
+# PostgreSQL for local development of the Digital Queue & Patient-Flow
+# Management System.
+#
+# PostgreSQL is the database the spec fixes for this system. This file brings
+# one up on a machine that has no local PostgreSQL install, so nobody has to
+# run on the SQLite prototype fallback. Bring it up from the repo root:
+#
+#   docker compose --env-file .env -f deploy/docker-compose.yml up -d
+#
+# --env-file is required: the values below come from the repo-root .env, and
+# Compose would otherwise look for deploy/.env.
+#
+# The clinic LAN server runs PostgreSQL natively — see
+# docs/operations/lan-deployment.md. Only DATABASE_URL differs between the two;
+# the application is identical either way.
+
+name: queue-management
+
+services:
+  postgres:
+    image: postgres:17
+    container_name: queue-management-pg
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB in .env}
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      # Deterministic collation, so ordering does not depend on the host locale.
+      POSTGRES_INITDB_ARGS: "--locale=C --encoding=UTF8"
+    ports:
+      # Bound to localhost only. Staff terminals reach the API, never the
+      # database directly.
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # start.bat waits on this before running migrations — an unhealthy
+      # database has to fail loudly rather than silently downgrade.
+      test:
+        ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+volumes:
+  pgdata:
+    name: queue-management-pgdata

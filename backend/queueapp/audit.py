@@ -38,6 +38,11 @@ ACCOUNTABILITY_ACTIONS = frozenset(
     {
         "priority_change",
         "manual_reorder",
+        # Closing an abandoned visit removes a patient from every queue on one
+        # person's judgement that they are no longer in the building. If that
+        # judgement is wrong, someone who was waiting has been erased — so it
+        # records who made it, not merely that reception did.
+        "closed_abandoned",
     }
 )
 

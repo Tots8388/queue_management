@@ -12,7 +12,14 @@ from django.core.exceptions import PermissionDenied, ValidationError
 from django.test import TestCase
 from django.utils import timezone
 
-from .models import PharmacyOutcome, PriorityChange, Role, StaffUser, Visit
+from .models import (
+    PharmacyOutcome,
+    PriorityChange,
+    Role,
+    ServiceCounter,
+    StaffUser,
+    Visit,
+)
 from .services import operations
 from .services import queue as queue_service
 
@@ -376,9 +383,114 @@ class ReturnAfterTestsTests(TestCase):
         self.assertIsNone(events[1].completed_at)
         self.assertFalse(self.visit.awaiting_tests)
 
+    def test_sending_for_tests_closes_the_consultation_in_progress(self):
+        """
+        Nothing else ever closes it: the return opens a *new* event, and
+        completing the stage closes only the most recent one. Left open, the
+        first consultation would read as still under way for the rest of the
+        visit, and would never reach the rolling median.
+        """
+        open_event = self.visit.stage_events.create(stage="consultation")
+
+        operations.send_for_tests(self.visit, actor=self.clinician)
+        open_event.refresh_from_db()
+
+        self.assertIsNotNone(open_event.completed_at)
+        self.assertEqual(open_event.completed_by_role, Role.CLINICIAN)
+
+    def test_no_consultation_event_is_left_open_across_the_whole_round_trip(self):
+        self.visit.stage_events.create(stage="consultation")
+
+        operations.send_for_tests(self.visit, actor=self.clinician)
+        operations.return_after_tests(self.visit, actor=self.clinician)
+        operations.complete_stage(self.visit, actor=self.clinician)
+
+        consultations = self.visit.stage_events.filter(stage="consultation")
+        self.assertEqual(consultations.count(), 2)
+        self.assertFalse(consultations.filter(completed_at__isnull=True).exists())
+
     def test_a_patient_not_sent_for_tests_cannot_return_from_them(self):
         with self.assertRaises(ValidationError):
             operations.return_after_tests(self.visit, actor=self.clinician)
+
+
+class StartServingStationTests(TestCase):
+    """
+    Calling a patient forward records which desk or room they were called to,
+    so the board can send them to a door rather than to a stage.
+    """
+
+    def setUp(self):
+        self.room = ServiceCounter.objects.create(
+            name="Consultation Room 1", stage="consultation"
+        )
+        self.clinician = staff(Role.CLINICIAN, "station_clinician")
+        self.clinician.default_counter = self.room
+        self.clinician.save()
+
+        self.visit = Visit.check_in()
+        self.visit.current_stage = "consultation"
+        self.visit.save()
+
+    def test_the_callers_own_station_is_recorded_by_default(self):
+        visit = operations.start_serving(self.visit, actor=self.clinician)
+
+        self.assertEqual(visit.assigned_counter, self.room)
+        self.assertEqual(visit.public_destination, "Consultation Room 1")
+
+    def test_an_explicit_counter_still_wins(self):
+        other = ServiceCounter.objects.create(
+            name="Consultation Room 2", stage="consultation"
+        )
+
+        visit = operations.start_serving(
+            self.visit, actor=self.clinician, counter=other
+        )
+
+        self.assertEqual(visit.assigned_counter, other)
+
+    def test_a_station_for_another_stage_is_not_stamped_on(self):
+        """
+        Showing the wrong room is worse than showing none: the patient walks to
+        the wrong door and their place looks like it was skipped.
+        """
+        self.visit.current_stage = "vitals"
+        self.visit.save()
+
+        visit = operations.start_serving(self.visit, actor=self.clinician)
+
+        self.assertIsNone(visit.assigned_counter)
+        self.assertEqual(visit.public_destination, "Vital signs")
+
+    def test_a_closed_station_is_not_stamped_on(self):
+        self.room.is_active = False
+        self.room.save()
+
+        visit = operations.start_serving(self.visit, actor=self.clinician)
+
+        self.assertIsNone(visit.assigned_counter)
+
+    def test_a_room_does_not_follow_the_patient_to_the_next_stage(self):
+        """
+        The room is the one piece of the board a patient acts on by walking
+        somewhere. A stale one sends them to a door they have already left, and
+        it looks authoritative while doing it.
+        """
+        operations.start_serving(self.visit, actor=self.clinician)
+
+        moved = operations.complete_stage(self.visit, actor=self.clinician)
+
+        self.assertEqual(moved.current_stage, "pharmacy")
+        self.assertIsNone(moved.assigned_counter)
+        self.assertEqual(moved.public_destination, "Pharmacy")
+
+    def test_staff_with_no_station_simply_leave_it_unset(self):
+        roving = staff(Role.CLINICIAN, "station_roving")
+
+        visit = operations.start_serving(self.visit, actor=roving)
+
+        self.assertIsNone(visit.assigned_counter)
+        self.assertEqual(visit.public_destination, "Consultation")
 
 
 class PresenceTests(TestCase):
@@ -515,7 +627,7 @@ class ManualReorderTests(TestCase):
 
 
 class PublicDisplayTests(TestCase):
-    """Spec FR8 — anonymous token and destination, nothing else."""
+    """Spec FR8 — where each anonymous token is, and nothing else."""
 
     def setUp(self):
         self.nurse = staff(Role.NURSE_VITALS)
@@ -532,12 +644,12 @@ class PublicDisplayTests(TestCase):
             self.visit, presence=Visit.Presence.CALLED, actor=self.nurse
         )
 
-    def test_a_row_carries_only_a_token_and_a_destination(self):
+    def test_a_row_carries_only_where_the_patient_is(self):
         rows = queue_service.public_display_rows()
 
         self.assertEqual(len(rows), 1)
         self.assertEqual(
-            set(vars(rows[0])), {"token", "destination"}
+            set(vars(rows[0])), {"token", "stage", "destination", "called"}
         )
 
     def test_the_board_never_discloses_the_priority_category(self):
@@ -546,10 +658,46 @@ class PublicDisplayTests(TestCase):
         self.assertNotIn("emergency", rendered.lower())
         self.assertNotIn("urgent", rendered.lower())
 
-    def test_patients_not_yet_called_are_not_listed(self):
+    def test_patients_not_yet_called_are_listed_where_they_are_waiting(self):
+        """
+        The board tracks the clinic, it does not call people forward. Somebody
+        waiting for a clinician is still in the building and still needs to be
+        able to find their own token.
+        """
         waiting = Visit.check_in()
         waiting.current_stage = "consultation"
         waiting.save()
 
-        tokens = [row.token for row in queue_service.public_display_rows()]
-        self.assertNotIn(waiting.token, tokens)
+        row = next(
+            row
+            for row in queue_service.public_display_rows()
+            if row.token == waiting.token
+        )
+
+        self.assertEqual(row.stage, "consultation")
+        self.assertFalse(row.called)
+
+    def test_only_a_called_token_is_marked_called(self):
+        waiting = Visit.check_in()
+        waiting.save()
+
+        called = {row.token: row.called for row in queue_service.public_display_rows()}
+
+        self.assertTrue(called[self.visit.token])
+        self.assertFalse(called[waiting.token])
+
+    def test_a_finished_patient_leaves_the_board(self):
+        self.visit.current_stage = "complete"
+        self.visit.save()
+
+        self.assertEqual(queue_service.public_display_rows(), [])
+
+    def test_a_visit_from_an_earlier_period_is_not_on_the_board(self):
+        """
+        Otherwise a token abandoned halfway — someone who went home without
+        telling anyone — would sit on the wall screen indefinitely.
+        """
+        self.visit.token_period -= timezone.timedelta(days=7)
+        self.visit.save()
+
+        self.assertEqual(queue_service.public_display_rows(), [])

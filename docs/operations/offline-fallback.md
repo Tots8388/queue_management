@@ -39,10 +39,11 @@ different sources of truth is worse than everyone working from paper.
 Reception takes the **fallback sheet** (template at the end of this document)
 and continues issuing numbers by hand.
 
-1. **Keep the sequence going.** Write the next number after the last one the
-   system issued. If nobody can see the last token, start a new sheet with the
-   prefix `P` — `P-01`, `P-02` — so the paper numbers are obviously not system
-   tokens.
+1. **Number the sheet from `P-01`.** System tokens are drawn at random, so
+   there is no sequence to continue and no way to guess what the system would
+   have issued next. Paper numbers run `P-01`, `P-02`, … on their own count —
+   the `P` prefix also makes them obviously not system tokens, which matters
+   when the two sets are side by side during reconciliation.
 2. **Record the arrival time for every patient, to the minute.** This is the
    single most important thing on the sheet. It is what restores each person's
    place in the queue when the system returns; without it, everyone who waited
@@ -116,6 +117,12 @@ better than a record that looks complete and is wrong.
   how many patients were handled on paper.
 - If the outage lasted more than an hour or recurred, raise it with the system
   owner — see [`resilience.md`](./resilience.md).
+- **Check the reception dashboard the next day.** An outage is when patients are
+  most likely to give up and go home unnoticed, and a visit entered from paper
+  that nobody then advanced stays open like any other. Anything untouched for
+  24 hours shows up in the **Abandoned visits** panel; close what is genuinely
+  gone, and treat a long list as a sign the reconciliation missed people rather
+  than as routine tidying.
 
 ---
 
